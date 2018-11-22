@@ -37,7 +37,7 @@ class FS::Hash(K, V)
 		r_value
 	end
 
-	def []?(key)
+	def []?(key : K) : V?
 		begin
 			read file_path key
 		rescue
@@ -46,11 +46,11 @@ class FS::Hash(K, V)
 		end
 	end
 
-	def [](key)
+	def [](key : K) : V
 		read file_path key
 	end
 
-	def []=(key, value)
+	def []=(key : K, value : V)
 		# FIXME: Update partitions pointing to previous value (in any) 
 
 		File.write file_path(key), value.to_json
@@ -68,7 +68,7 @@ class FS::Hash(K, V)
 		end
 	end
 
-	def delete(key)
+	def delete(key : K)
 		value = self[key]?
 
 		begin
@@ -131,70 +131,5 @@ class FS::Hash(K, V)
 	private def read(file_path : String)
 		V.from_json File.read file_path
 	end
-end
-
-# Basic mapping testing.
-
-a = FS::Hash(String, JSON::Any).new "test-storage"
-
-a["a"] = JSON::Any.new "now exists"
-
-pp! a["a"]
-pp! a["no file found"]?
-pp! a["invalid json"]?
-
-pp! a["new entry"] = JSON::Any.new "blip blop"
-pp! a.delete "new entry"
-pp! a.delete "non-existant entry"
-
-a.each do |k, v|
-	pp! k, v
-end
-
-# Indexation testing.
-
-require "uuid"
-
-class Article
-	JSON.mapping({
-		id: String,
-		title: String,
-		author: String
-	})
-
-	def initialize(@id, @title, @author)
-	end
-
-	getter author
-	getter id
-end
-
-articles = FS::Hash(String, Article).new "articles"
-by_author = articles.new_partition "author", &.author
-
-article = Article.new UUID.random.to_s, "Bleh foo bar", "Satsuki"
-articles[article.id] = article
-
-article = Article.new UUID.random.to_s, "Bleh foo bar", "Natsuki"
-articles[article.id] = article
-
-article = Article.new UUID.random.to_s, "Bleh foo bar", "Mutsuki"
-articles[article.id] = article
-
-articles.delete articles.get_partition("author", "Natsuki")[0].id
-
-article = Article.new UUID.random.to_s, "Bleh foo bar", "Satsuki"
-articles[article.id] = article
-
-articles.delete articles.get_partition("author", "Satsuki")[1].id
-
-article = Article.new UUID.random.to_s, "Bleh foo bar", "Satsuki"
-articles[article.id] = article
-
-article = Article.new UUID.random.to_s, "Bleh foo bar", "Nagatsuki"
-articles[article.id] = article
-
-articles.each do |a, b|
-	p a, b
 end
 
