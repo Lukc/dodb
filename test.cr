@@ -1,5 +1,5 @@
 require "json"
-require "./orm.cr"
+require "./src/fs.cr"
 
 # Basic mapping testing.
 
