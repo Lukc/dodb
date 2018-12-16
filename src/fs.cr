@@ -58,7 +58,7 @@ class FS::Hash(K, V)
 		@partitions.each do |index|
 			index_key = index.key_proc.call value
 
-			symlink = file_path(key, index.name, index_key)
+			symlink = file_path(key.to_s, index.name, index_key)
 
 			Dir.mkdir_p File.dirname symlink
 
