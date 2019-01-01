@@ -116,6 +116,18 @@ class FS::Hash(K, V)
 		end
 	end
 
+	##
+	# CAUTION: Very slow. Try not to use.
+	def to_h
+		hash = ::Hash(K, V).new
+
+		each do |key, value|
+			hash[key] = value
+		end
+
+		hash
+	end
+
 	private def file_path(key : K)
 		"#{@directory_name}/#{key.to_s}.json"
 	end
