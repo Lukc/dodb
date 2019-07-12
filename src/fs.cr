@@ -31,7 +31,7 @@ class FS::Hash(K, V)
 		Dir.each_child partition_directory do |child|
 			pp child
 
-			r_value << V.from_json File.read "#{partition_directory}/#{child}"
+			r_value << V.from_json ::File.read "#{partition_directory}/#{child}"
 		end
 
 		r_value
@@ -53,18 +53,18 @@ class FS::Hash(K, V)
 	def []=(key : K, value : V)
 		# FIXME: Update partitions pointing to previous value (in any) 
 
-		File.write file_path(key), value.to_json
+		::File.write file_path(key), value.to_json
 
 		@partitions.each do |index|
 			index_key = index.key_proc.call value
 
 			symlink = file_path(key.to_s, index.name, index_key)
 
-			Dir.mkdir_p File.dirname symlink
+			Dir.mkdir_p ::File.dirname symlink
 
-			File.delete symlink if File.exists? symlink
+			::File.delete symlink if ::File.exists? symlink
 
-			File.symlink symlink_path(key), symlink
+			::File.symlink symlink_path(key), symlink
 		end
 	end
 
@@ -72,7 +72,7 @@ class FS::Hash(K, V)
 		value = self[key]?
 
 		begin
-			File.delete file_path key
+			::File.delete file_path key
 		rescue
 			# FIXME: Only intercept “no such file" errors
 		end
@@ -86,7 +86,7 @@ class FS::Hash(K, V)
 				puts "old index #{key.to_s} => #{index_key}"
 				puts "symlink is #{symlink}"
 
-				File.delete symlink
+				::File.delete symlink
 			end
 		end
 
@@ -141,7 +141,7 @@ class FS::Hash(K, V)
 	end
 
 	private def read(file_path : String)
-		V.from_json File.read file_path
+		V.from_json ::File.read file_path
 	end
 end
 
