@@ -1,4 +1,5 @@
 
+require "file_utils"
 require "json"
 
 class FS::Hash(K, V)
@@ -51,9 +52,13 @@ class FS::Hash(K, V)
 	end
 
 	def []=(key : K, value : V)
-		# FIXME: Update partitions pointing to previous value (in any) 
+		# FIXME: Update partitions pointing to previous value (if any)
 
-		::File.write file_path(key), value.to_json
+		# avoid corruption in case of crash during file writing
+		file_path(key).tap do |path|
+			::File.write "#{path}.new", value.to_json
+			::FileUtils.mv "#{path}.new", path
+		end
 
 		@partitions.each do |index|
 			index_key = index.key_proc.call value
@@ -62,6 +67,8 @@ class FS::Hash(K, V)
 
 			Dir.mkdir_p ::File.dirname symlink
 
+			# FIXME: why?
+			# Hint: to update old symlinks (new data directory)
 			::File.delete symlink if ::File.exists? symlink
 
 			::File.symlink symlink_path(key), symlink
