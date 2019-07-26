@@ -3,6 +3,7 @@ require "file_utils"
 require "json"
 
 class FS::Hash(K, V)
+	# also works for indexes
 	class PartitionData(V)
 		property name : String
 		property key_proc : Proc(V, String)
@@ -11,10 +12,13 @@ class FS::Hash(K, V)
 		end
 	end
 
+	class IndexData(V) < PartitionData(V)
+	end
+
 	@partitions = [] of PartitionData(V)
  
 	def initialize(@directory_name : String)
-		Dir.mkdir_p @directory_name
+		Dir.mkdir_p data_path
 	end
 
 	##
@@ -22,17 +26,38 @@ class FS::Hash(K, V)
 	def new_partition(name : String, &block : Proc(V, String))
 		@partitions.push PartitionData(V).new name, block
 
-		Dir.mkdir_p "#{@directory_name}/.by_#{name}"
+		Dir.mkdir_p dir_path_partition(name)
+	end
+
+	##
+	# name is the name that will be used on the file system.
+	def new_index(name : String, &block : Proc(V, String))
+		@partitions.push IndexData(V).new name, block
+
+		Dir.mkdir_p dir_path_indexes(name)
 	end
 
 	def get_partition(name : String, key : K)
 		r_value = Array(V).new
 
-		partition_directory = "#{@directory_name}/.by_#{name}/#{key}"
+		partition_directory = "#{dir_path_partition name}/#{key}"
 		Dir.each_child partition_directory do |child|
 			pp child
 
 			r_value << V.from_json ::File.read "#{partition_directory}/#{child}"
+		end
+
+		r_value
+	end
+
+	def get_index(name : String)
+		r_value = Array(V).new
+
+		indexes_directory = dir_path_indexes name
+		Dir.each_child indexes_directory do |child|
+			pp child
+
+			r_value << V.from_json ::File.read "#{indexes_directory}/#{child}"
 		end
 
 		r_value
@@ -63,15 +88,27 @@ class FS::Hash(K, V)
 		@partitions.each do |index|
 			index_key = index.key_proc.call value
 
-			symlink = file_path(key.to_s, index.name, index_key)
+			case index
+			when IndexData
+				symlink = file_path_indexes(key.to_s, index.name)
 
-			Dir.mkdir_p ::File.dirname symlink
+				Dir.mkdir_p ::File.dirname symlink
 
-			# FIXME: why?
-			# Hint: to update old symlinks (new data directory)
-			::File.delete symlink if ::File.exists? symlink
+				if ::File.exists? symlink
+					raise Exception.new "symlink already exists: #{symlink}"
+				end
 
-			::File.symlink symlink_path(key), symlink
+				::File.symlink symlink_path_index(key), symlink
+			when PartitionData
+				symlink = file_path_partition(key.to_s, index.name, index_key)
+
+				Dir.mkdir_p ::File.dirname symlink
+
+				::File.delete symlink if ::File.exists? symlink
+
+				::File.symlink symlink_path_partition(key), symlink
+			end
+
 		end
 	end
 
@@ -88,12 +125,22 @@ class FS::Hash(K, V)
 			@partitions.each do |index|
 				index_key = index.key_proc.call value
 
-				symlink = file_path(key, index.name, index_key)
+				case index
+				when IndexData
+					symlink = file_path_indexes(key.to_s, index.name)
 
-				puts "old index #{key.to_s} => #{index_key}"
-				puts "symlink is #{symlink}"
+					puts "old index #{key.to_s} => #{index_key}"
+					puts "symlink is #{symlink}"
 
-				::File.delete symlink
+					::File.delete symlink
+				when PartitionData
+					symlink = file_path_partition(key, index.name, index_key)
+
+					puts "old index #{key.to_s} => #{index_key}"
+					puts "symlink is #{symlink}"
+
+					::File.delete symlink
+				end
 			end
 		end
 
@@ -104,10 +151,11 @@ class FS::Hash(K, V)
 	# CAUTION: Very slow. Try not to use.
 	# Can be useful for making dumps or to restore a database, however.
 	def each
-		Dir.each_child @directory_name do |child|
+		dirname = data_path
+		Dir.each_child dirname do |child|
 			next if child.match /^\./
 
-			full_path = "#{@directory_name}/#{child}"
+			full_path = "#{dirname}/#{child}"
 
 			begin
 				# FIXME: Only intercept JSON parsing errors.
@@ -135,16 +183,36 @@ class FS::Hash(K, V)
 		hash
 	end
 
+	private def data_path
+		"#{@directory_name}/data"
+	end
+
 	private def file_path(key : K)
-		"#{@directory_name}/#{key.to_s}.json"
+		"#{data_path}/#{key.to_s}.json"
 	end
 
-	private def file_path(key : String, index_name : String, index_key : String)
-		"#{@directory_name}/.by_#{index_name}/#{index_key}/#{key}.json"
+	private def dir_path_partition(partition_name : String)
+		"#{@directory_name}/partitions/by_#{partition_name}"
 	end
 
-	private def symlink_path(key : K)
-		"../../#{key.to_s}.json"
+	private def dir_path_indexes(index_name : String)
+		"#{@directory_name}/indexes/by_#{index_name}"
+	end
+
+	private def file_path_indexes(key : String, index_name : String)
+		"#{dir_path_indexes index_name}/#{key}.json"
+	end
+
+	private def file_path_partition(key : String, index_name : String, index_key : String)
+		"#{dir_path_partition index_name}/#{index_key}/#{key}.json"
+	end
+
+	private def symlink_path_index(key : K)
+		"../../data/#{key.to_s}.json"
+	end
+
+	private def symlink_path_partition(key : K)
+		"../../../data/#{key.to_s}.json"
 	end
 
 	private def read(file_path : String)

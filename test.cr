@@ -39,6 +39,7 @@ end
 
 articles = FS::Hash(String, Article).new "articles"
 by_author = articles.new_partition "author", &.author
+by_id = articles.new_index "id", &.id
 
 article = Article.new UUID.random.to_s, "Bleh foo bar", "Satsuki"
 articles[article.id] = article
