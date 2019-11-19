@@ -80,6 +80,9 @@ class FS::Hash(K, V)
 		r_value = Array(V).new
 
 		partition_directory = "#{dir_path_nn name}/#{key}"
+
+		return r_value unless Dir.exists? partition_directory
+
 		Dir.each_child partition_directory do |child|
 			r_value << V.from_json ::File.read "#{partition_directory}/#{child}"
 		end

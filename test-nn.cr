@@ -55,3 +55,7 @@ s.to_h.size.times do
 	pp! s.get_nn_partition("tags", "shiratsuyu").map &.title
 end
 
+puts "Testing get_nn_partition on unknown entries."
+
+pp! s.get_nn_partition("tags", "kaga").map &.title
+
