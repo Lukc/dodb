@@ -3,7 +3,7 @@ require "file_utils"
 require "json"
 
 class FS::Hash(K, V)
-	# also works for indexes
+	# Used for 1-n associations.
 	class PartitionData(V)
 		property name : String
 		property key_proc : Proc(V, String)
@@ -12,10 +12,21 @@ class FS::Hash(K, V)
 		end
 	end
 
+	# Used for 1-1 associations.
 	class IndexData(V) < PartitionData(V)
 	end
 
+	# Used for n-n associations.
+	class NNPartitionData(V)
+		property name : String
+		property key_proc : Proc(V, Array(String))
+
+		def initialize(@name, @key_proc)
+		end
+	end
+
 	@partitions = [] of PartitionData(V)
+	@nn_partitions = [] of NNPartitionData(V)
  
 	def initialize(@directory_name : String)
 		Dir.mkdir_p data_path
@@ -37,17 +48,10 @@ class FS::Hash(K, V)
 		Dir.mkdir_p dir_path_indexes(name)
 	end
 
-	def get_partition(name : String, key : K)
-		r_value = Array(V).new
+	def new_nn_partition(name : String, &block : Proc(V, Array(String)))
+		@nn_partitions.push NNPartitionData(V).new name, block
 
-		partition_directory = "#{dir_path_partition name}/#{key}"
-		Dir.each_child partition_directory do |child|
-			pp child
-
-			r_value << V.from_json ::File.read "#{partition_directory}/#{child}"
-		end
-
-		r_value
+		Dir.mkdir_p "#{@directory_name}/.by_nn_#{name}"
 	end
 
 	def get_index(name : String)
@@ -55,9 +59,29 @@ class FS::Hash(K, V)
 
 		indexes_directory = dir_path_indexes name
 		Dir.each_child indexes_directory do |child|
-			pp child
-
 			r_value << V.from_json ::File.read "#{indexes_directory}/#{child}"
+		end
+
+		r_value
+	end
+
+	def get_partition(name : String, key : K)
+		r_value = Array(V).new
+
+		partition_directory = "#{dir_path_partition name}/#{key}"
+		Dir.each_child partition_directory do |child|
+			r_value << V.from_json ::File.read "#{partition_directory}/#{child}"
+		end
+
+		r_value
+	end
+
+	def get_nn_partition(name, key : K)
+		r_value = Array(V).new
+
+		partition_directory = "#{dir_path_nn name}/#{key}"
+		Dir.each_child partition_directory do |child|
+			r_value << V.from_json ::File.read "#{partition_directory}/#{child}"
 		end
 
 		r_value
@@ -110,6 +134,20 @@ class FS::Hash(K, V)
 			end
 
 		end
+
+		@nn_partitions.each do |nn|
+			indices = nn.key_proc.call value
+
+			indices.each do |index|
+				symlink = file_path_nn(key.to_s, nn.name, index)
+
+				Dir.mkdir_p ::File.dirname symlink
+
+				::File.delete symlink if ::File.exists? symlink
+
+				::File.symlink symlink_path_nn(key), symlink
+			end
+		end
 	end
 
 	def delete(key : K)
@@ -129,15 +167,19 @@ class FS::Hash(K, V)
 				when IndexData
 					symlink = file_path_indexes(key.to_s, index.name)
 
-					puts "old index #{key.to_s} => #{index_key}"
-					puts "symlink is #{symlink}"
-
 					::File.delete symlink
 				when PartitionData
 					symlink = file_path_partition(key, index.name, index_key)
 
-					puts "old index #{key.to_s} => #{index_key}"
-					puts "symlink is #{symlink}"
+					::File.delete symlink
+				end
+			end
+
+			@nn_partitions.each do |nn|
+				indices = nn.key_proc.call value
+
+				indices.each do |index_key|
+					symlink = file_path_nn(key.to_s, nn.name, index_key)
 
 					::File.delete symlink
 				end
@@ -199,6 +241,10 @@ class FS::Hash(K, V)
 		"#{@directory_name}/indexes/by_#{index_name}"
 	end
 
+	private def dir_path_nn(name : String)
+		"#{@directory_name}/nn_partitions/by_#{name}"
+	end
+
 	private def file_path_indexes(key : String, index_name : String)
 		"#{dir_path_indexes index_name}/#{key}.json"
 	end
@@ -207,12 +253,20 @@ class FS::Hash(K, V)
 		"#{dir_path_partition index_name}/#{index_key}/#{key}.json"
 	end
 
+	private def file_path_nn(key : String, index_name : String, index_key : String)
+		"#{dir_path_nn index_name}/#{index_key}/#{key}.json"
+	end
+
 	private def symlink_path_index(key : K)
 		"../../data/#{key.to_s}.json"
 	end
 
 	private def symlink_path_partition(key : K)
 		"../../../data/#{key.to_s}.json"
+	end
+
+	private def symlink_path_nn(key : K)
+		symlink_path_partition key
 	end
 
 	private def read(file_path : String)
