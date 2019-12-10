@@ -104,14 +104,22 @@ class FS::Hash(K, V)
 	end
 
 	def []=(key : K, value : V)
-		# FIXME: Update partitions pointing to previous value (if any)
+		# Removes any old indices or partitions pointing to a value about
+		# to be replaced.
+		self.[key]?.try do |old_value|
+			remove_partitions key, old_value
+		end
 
-		# avoid corruption in case of crash during file writing
+		# Avoids corruption in case the application crashes while writing.
 		file_path(key).tap do |path|
 			::File.write "#{path}.new", value.to_json
 			::FileUtils.mv "#{path}.new", path
 		end
 
+		write_partitions key, value
+	end
+
+	def write_partitions(key : K, value : V)
 		@partitions.each do |index|
 			index_key = index.key_proc.call value
 
@@ -156,40 +164,44 @@ class FS::Hash(K, V)
 	def delete(key : K)
 		value = self[key]?
 
+		return if value.nil?
+
 		begin
 			::File.delete file_path key
 		rescue
 			# FIXME: Only intercept “no such file" errors
 		end
 
-		unless value.nil?
-			@partitions.each do |index|
-				index_key = index.key_proc.call value
+		remove_partitions key, value
 
-				case index
-				when IndexData
-					symlink = file_path_indexes(key.to_s, index.name)
+		value
+	end
 
-					::File.delete symlink
-				when PartitionData
-					symlink = file_path_partition(key, index.name, index_key)
+	def remove_partitions(key : K, value : V)
+		@partitions.each do |index|
+			index_key = index.key_proc.call value
 
-					::File.delete symlink
-				end
-			end
+			case index
+			when IndexData
+				symlink = file_path_indexes(key.to_s, index.name)
 
-			@nn_partitions.each do |nn|
-				indices = nn.key_proc.call value
+				::File.delete symlink
+			when PartitionData
+				symlink = file_path_partition(key, index.name, index_key)
 
-				indices.each do |index_key|
-					symlink = file_path_nn(key.to_s, nn.name, index_key)
-
-					::File.delete symlink
-				end
+				::File.delete symlink
 			end
 		end
 
-		value
+		@nn_partitions.each do |nn|
+			indices = nn.key_proc.call value
+
+			indices.each do |index_key|
+				symlink = file_path_nn(key.to_s, nn.name, index_key)
+
+				::File.delete symlink
+			end
+		end
 	end
 
 	##
