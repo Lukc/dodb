@@ -17,7 +17,7 @@ class FS::Hash(K, V)
 	end
 
 	# Used for n-n associations.
-	class NNPartitionData(V)
+	class Tags(V)
 		property name : String
 		property key_proc : Proc(V, Array(String))
 
@@ -26,7 +26,7 @@ class FS::Hash(K, V)
 	end
 
 	@partitions = [] of PartitionData(V)
-	@tags = [] of NNPartitionData(V)
+	@tags = [] of Tags(V)
  
 	def initialize(@directory_name : String)
 		Dir.mkdir_p data_path
@@ -49,7 +49,7 @@ class FS::Hash(K, V)
 	end
 
 	def new_tags(name : String, &block : Proc(V, Array(String)))
-		@tags.push NNPartitionData(V).new name, block
+		@tags.push Tags(V).new name, block
 
 		Dir.mkdir_p "#{@directory_name}/.by_nn_#{name}"
 	end
