@@ -104,9 +104,13 @@ class FS::Hash(K, V)
 	end
 
 	def []=(key : K, value : V)
+		old_value = self.[key]?
+
+		check_collisions! key, value, old_value
+
 		# Removes any old indices or partitions pointing to a value about
 		# to be replaced.
-		self.[key]?.try do |old_value|
+		if old_value
 			remove_partitions key, old_value
 		end
 
@@ -119,16 +123,36 @@ class FS::Hash(K, V)
 		write_partitions key, value
 	end
 
+	def check_collisions!(key : K, value : V, old_value : V?)
+		@partitions.each do |index|
+			case index
+			when IndexData
+				index_key = index.key_proc.call value
+
+				symlink = file_path_indexes(index_key.to_s, index.name)
+				# FIXME: Check it’s not pointing to “old_value”, if any.
+
+				pp! symlink
+
+				if ::File.exists? symlink
+					raise IndexOverload.new "Index '#{index.name}' is overloaded for key '#{key}'"
+				end
+			end
+		end
+	end
+
 	def write_partitions(key : K, value : V)
 		@partitions.each do |index|
 			index_key = index.key_proc.call value
 
 			case index
 			when IndexData
-				symlink = file_path_indexes(key.to_s, index.name)
+				symlink = file_path_indexes(index_key, index.name)
 
 				Dir.mkdir_p ::File.dirname symlink
 
+				# FIXME: A check_collisions! is done a bit higher. Is this
+				#        still required?
 				if ::File.exists? symlink
 					raise Exception.new "symlink already exists: #{symlink}"
 				end
@@ -183,7 +207,7 @@ class FS::Hash(K, V)
 
 			case index
 			when IndexData
-				symlink = file_path_indexes(key.to_s, index.name)
+				symlink = file_path_indexes(index_key, index.name)
 
 				::File.delete symlink
 			when PartitionData
@@ -260,8 +284,8 @@ class FS::Hash(K, V)
 		"#{@directory_name}/tags/by_#{name}"
 	end
 
-	private def file_path_indexes(key : String, index_name : String)
-		"#{dir_path_indexes index_name}/#{key}.json"
+	private def file_path_indexes(index_key : String, index_name : String)
+		"#{dir_path_indexes index_name}/#{index_key}.json"
 	end
 
 	private def file_path_partition(key : String, index_name : String, index_key : String)
@@ -287,5 +311,8 @@ class FS::Hash(K, V)
 	private def read(file_path : String)
 		V.from_json ::File.read file_path
 	end
+end
+
+class FS::IndexOverload < Exception
 end
 
