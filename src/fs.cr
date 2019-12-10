@@ -26,7 +26,7 @@ class FS::Hash(K, V)
 	end
 
 	@partitions = [] of PartitionData(V)
-	@nn_partitions = [] of NNPartitionData(V)
+	@tags = [] of NNPartitionData(V)
  
 	def initialize(@directory_name : String)
 		Dir.mkdir_p data_path
@@ -48,8 +48,8 @@ class FS::Hash(K, V)
 		Dir.mkdir_p dir_path_indexes(name)
 	end
 
-	def new_nn_partition(name : String, &block : Proc(V, Array(String)))
-		@nn_partitions.push NNPartitionData(V).new name, block
+	def new_tags(name : String, &block : Proc(V, Array(String)))
+		@tags.push NNPartitionData(V).new name, block
 
 		Dir.mkdir_p "#{@directory_name}/.by_nn_#{name}"
 	end
@@ -76,7 +76,7 @@ class FS::Hash(K, V)
 		r_value
 	end
 
-	def get_nn_partition(name, key : K)
+	def get_tags(name, key : K)
 		r_value = Array(V).new
 
 		partition_directory = "#{dir_path_nn name}/#{key}"
@@ -146,7 +146,7 @@ class FS::Hash(K, V)
 
 		end
 
-		@nn_partitions.each do |nn|
+		@tags.each do |nn|
 			indices = nn.key_proc.call value
 
 			indices.each do |index|
@@ -193,7 +193,7 @@ class FS::Hash(K, V)
 			end
 		end
 
-		@nn_partitions.each do |nn|
+		@tags.each do |nn|
 			indices = nn.key_proc.call value
 
 			indices.each do |index_key|
@@ -257,7 +257,7 @@ class FS::Hash(K, V)
 	end
 
 	private def dir_path_nn(name : String)
-		"#{@directory_name}/nn_partitions/by_#{name}"
+		"#{@directory_name}/tags/by_#{name}"
 	end
 
 	private def file_path_indexes(key : String, index_name : String)
