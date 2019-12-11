@@ -4,7 +4,7 @@ require "json"
 require "./exceptions.cr"
 require "./indexer.cr"
 
-class FSDB::Index(V) < FSDB::Indexer(V)
+class DODB::Index(V) < DODB::Indexer(V)
 	property name         : String
 	property key_proc     : Proc(V, String)
 	getter   storage_root : String

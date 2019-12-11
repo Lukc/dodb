@@ -3,7 +3,7 @@ require "json"
 
 require "./indexer.cr"
 
-class FSDB::Partition(V) < FSDB::Indexer(V)
+class DODB::Partition(V) < DODB::Indexer(V)
 	property name         : String
 	property key_proc     : Proc(V, String)
 	getter   storage_root : String

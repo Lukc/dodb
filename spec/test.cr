@@ -57,7 +57,7 @@ class Ship
 	end
 end
 
-class FSDB::SpecDataBase < FSDB::DataBase(String, Ship)
+class DODB::SpecDataBase < DODB::DataBase(String, Ship)
 	def initialize
 		::FileUtils.rm_rf "test-storage"
 
@@ -65,10 +65,10 @@ class FSDB::SpecDataBase < FSDB::DataBase(String, Ship)
 	end
 end
 
-describe "FSDB::DataBase" do
+describe "DODB::DataBase" do
 	describe "basics" do
 		it "store and get data" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 
 			Ship.all_ships.each do |ship|
 				db[ship.id] = ship
@@ -80,7 +80,7 @@ describe "FSDB::DataBase" do
 		end
 
 		it "rewrite already stored data" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 			ship = Ship.all_ships[0]
 
 			db[ship.id] = Ship.new "broken", id: ship.id
@@ -90,7 +90,7 @@ describe "FSDB::DataBase" do
 		end
 
 		it "properly remove data" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 
 			Ship.all_ships.each do |ship|
 				db[ship.id] = ship
@@ -102,7 +102,7 @@ describe "FSDB::DataBase" do
 
 			Ship.all_ships.each do |ship|
 				# FIXME: Should it raise a particular exception?
-				expect_raises FSDB::MissingEntry do
+				expect_raises DODB::MissingEntry do
 					db[ship.id]
 				end
 
@@ -113,7 +113,7 @@ describe "FSDB::DataBase" do
 
 	describe "indices" do
 		it "do basic indexing" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 
 			db_ships_by_name = db.new_index "name", &.name
 
@@ -127,7 +127,7 @@ describe "FSDB::DataBase" do
 		end
 
 		it "raise on index overload" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 
 			db_ships_by_name = db.new_index "name", &.name
 
@@ -137,13 +137,13 @@ describe "FSDB::DataBase" do
 
 			# Should not be allowed to store an entry whose “name” field
 			# already exists.
-			expect_raises(FSDB::IndexOverload) do
+			expect_raises(DODB::IndexOverload) do
 				db["another id"] = some_ship
 			end
 		end
 
 		it "properly deindex" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 
 			db_ships_by_name = db.new_index "name", &.name
 
@@ -161,7 +161,7 @@ describe "FSDB::DataBase" do
 		end
 
 		it "properly reindex" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 
 			db_ships_by_name = db.new_index "name", &.name
 
@@ -184,7 +184,7 @@ describe "FSDB::DataBase" do
 
 	describe "partitions" do
 		it "do basic partitioning" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 
 			db_ships_by_class = db.new_partition "class", &.class
 
@@ -212,7 +212,7 @@ describe "FSDB::DataBase" do
 
 	describe "tags" do
 		it "do basic tagging" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 
 			db_ships_by_tags = db.new_tags "tags", &.tags
 
@@ -233,7 +233,7 @@ describe "FSDB::DataBase" do
 		end
 
 		it "properly removes tags" do
-			db = FSDB::SpecDataBase.new
+			db = DODB::SpecDataBase.new
 
 			db_ships_by_tags = db.new_tags "tags", &.tags
 

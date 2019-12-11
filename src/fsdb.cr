@@ -3,7 +3,7 @@ require "json"
 
 require "./fsdb/*"
 
-class FSDB::DataBase(K, V)
+class DODB::DataBase(K, V)
 	@indexers = [] of Indexer(V)
 
 	def initialize(@directory_name : String)
@@ -35,20 +35,20 @@ class FSDB::DataBase(K, V)
 	def get_index(name : String, key)
 		index = @indexers.find &.name.==(name)
 
-		index.not_nil!.as(FSDB::Index).get key
+		index.not_nil!.as(DODB::Index).get key
 	end
 
 	# FIXME: Is this “key” really a K, not just a String?
 	def get_partition(table_name : String, partition_name : String)
 		partition = @indexers.find &.name.==(table_name)
 
-		partition.not_nil!.as(FSDB::Partition).get partition_name
+		partition.not_nil!.as(DODB::Partition).get partition_name
 	end
 
 	def get_tags(name, key : K)
 		partition = @indexers.find &.name.==(name)
 
-		partition.not_nil!.as(FSDB::Tags).get name, key
+		partition.not_nil!.as(DODB::Tags).get name, key
 	end
 
 	def []?(key : K) : V?

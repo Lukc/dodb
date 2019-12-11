@@ -1,5 +1,5 @@
 
-class FSDB::MissingEntry < Exception
+class DODB::MissingEntry < Exception
 	getter index : String?
 	getter key   : String
 
@@ -12,6 +12,6 @@ class FSDB::MissingEntry < Exception
 	end
 end
 
-class FSDB::IndexOverload < Exception
+class DODB::IndexOverload < Exception
 end
 

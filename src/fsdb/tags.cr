@@ -1,7 +1,7 @@
 require "file_utils"
 require "json"
 
-class FSDB::Tags(V) < FSDB::Indexer(V)
+class DODB::Tags(V) < DODB::Indexer(V)
 	property name         : String
 	property key_proc     : Proc(V, Array(String))
 	getter   storage_root : String

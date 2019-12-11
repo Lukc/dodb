@@ -1,10 +1,10 @@
-name: fsdb
+name: dodb
 version: 0.2.0
 
 authors:
   - Luka Vandervelden <lukc@upyum.com>
 
 description: |
-  Simple, embeddable document-oriented database in Crystal.
+  Simple, embeddable Document-Oriented DataBase in Crystal.
 
 license: MIT
