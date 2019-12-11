@@ -1,5 +1,5 @@
 require "json"
-require "./src/fs.cr"
+require "./src/fsdb.cr"
 require "uuid"
 
 # This test basically works if no data is obtained when fetching "broken"
@@ -21,7 +21,7 @@ class Ship
 	getter id
 end
 
-ships = FS::Hash(String, Ship).new "test-edit"
+ships = FSDB::DataBase(String, Ship).new "test-edit"
 by_name   = ships.new_index        "name", &.name
 by_class  = ships.new_partition    "class", &.class
 by_id     = ships.new_index        "id",   &.id
@@ -46,6 +46,8 @@ ships.each do |id, ship|
 	p "#{ship.name} (#{ship.class}) [#{ship.tags.join ", "}]"
 end
 
+pp! by_class.get("Mutsuki").map(&.name)
+
 no_broken = Array(Array(Ship)).new
 puts
 puts "Partitions/indices"
@@ -58,4 +60,15 @@ no_broken << pp! ships.get_tags("tags", "broken")
 if no_broken.flatten.size > 0
 	puts "ERROR: the test failed"
 end
+
+##
+# Not implemented, will *not* work (or compile).
+##
+
+#ships.partition("class", "Mutsuki").get(min: 1, max: 3)
+#ships.partition("class", "Mutsuki").get[1]
+
+#ships.partition("class", "Mutsuki").partition("batch", "first").get
+
+#ships.partition("class", "Mutsuki").sorted_by("name").get(min: 0, max: 2)
 

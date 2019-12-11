@@ -1,5 +1,5 @@
 require "json"
-require "./src/fs.cr"
+require "./src/fsdb.cr"
 require "uuid"
 
 # This test basically works if no data is obtained when fetching "broken"
@@ -21,7 +21,7 @@ class Ship
 	getter id
 end
 
-ships = FS::Hash(String, Ship).new "test-index"
+ships = FSDB::DataBase(String, Ship).new "test-index"
 by_name   = ships.new_index        "name", &.name
 by_class  = ships.new_partition    "class", &.class
 by_id     = ships.new_index        "id",   &.id
@@ -33,7 +33,7 @@ ships[ship.id] = ship
 begin
 	ship = Ship.new "Mutsuki", "broken", tags: ["kuchikukan"]
 	ships[ship.id] = ship
-rescue FS::IndexOverload
+rescue FSDB::IndexOverload
 	puts "rescue: Adding an entry that would overload an index has been prevented."
 	# Should happen, ignore it.
 else

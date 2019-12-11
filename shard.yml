@@ -1,10 +1,10 @@
-name: fs
+name: fsdb
 version: 0.2.0
 
 authors:
   - Luka Vandervelden <lukc@upyum.com>
 
 description: |
-  Filesystem abstraction through near-native types.
+  Simple, embeddable document-oriented database in Crystal.
 
 license: MIT

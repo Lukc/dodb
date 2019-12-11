@@ -2,14 +2,14 @@
 require "file_utils"
 require "json"
 
-abstract class FS::Indexer(V)
+abstract class FSDB::Indexer(V)
 	abstract def index   (key : String, value : V)
 	abstract def deindex (key : String, value : V)
 	abstract def check!  (key : String, value : V, old_value : V?)
 	abstract def name                : String
 end
 
-class FS::Partition(V) < FS::Indexer(V)
+class FSDB::Partition(V) < FSDB::Indexer(V)
 	property name         : String
 	property key_proc     : Proc(V, String)
 	getter   storage_root : String
@@ -71,7 +71,7 @@ class FS::Partition(V) < FS::Indexer(V)
 	end
 end
 
-class FS::Index(V) < FS::Indexer(V)
+class FSDB::Index(V) < FSDB::Indexer(V)
 	property name         : String
 	property key_proc     : Proc(V, String)
 	getter   storage_root : String
@@ -136,7 +136,7 @@ class FS::Index(V) < FS::Indexer(V)
 	end
 end
 
-class FS::Tags(V) < FS::Indexer(V)
+class FSDB::Tags(V) < FSDB::Indexer(V)
 	property name         : String
 	property key_proc     : Proc(V, Array(String))
 	getter   storage_root : String
@@ -200,10 +200,10 @@ class FS::Tags(V) < FS::Indexer(V)
 	end
 end
 
-class FS::IndexOverload < Exception
+class FSDB::IndexOverload < Exception
 end
 
-class FS::Hash(K, V)
+class FSDB::DataBase(K, V)
 	@indexers = [] of Indexer(V)
 
 	def initialize(@directory_name : String)
@@ -235,20 +235,20 @@ class FS::Hash(K, V)
 	def get_index(name : String, key)
 		index = @indexers.find &.name.==(name)
 
-		index.not_nil!.as(FS::Index).get key
+		index.not_nil!.as(FSDB::Index).get key
 	end
 
 	# FIXME: Is this “key” really a K, not just a String?
 	def get_partition(table_name : String, partition_name : String)
 		partition = @indexers.find &.name.==(table_name)
 
-		partition.not_nil!.as(FS::Partition).get partition_name
+		partition.not_nil!.as(FSDB::Partition).get partition_name
 	end
 
 	def get_tags(name, key : K)
 		partition = @indexers.find &.name.==(name)
 
-		partition.not_nil!.as(FS::Tags).get name, key
+		partition.not_nil!.as(FSDB::Tags).get name, key
 	end
 
 	def []?(key : K) : V?

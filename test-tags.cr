@@ -1,6 +1,6 @@
 require "json"
 require "uuid/json"
-require "./src/fs.cr"
+require "./src/fsdb.cr"
 
 class Article
 	JSON.mapping({
@@ -13,7 +13,7 @@ class Article
 	end
 end
 
-s = FS::Hash(String, Article).new "test-tags"
+s = FSDB::DataBase(String, Article).new "test-tags"
 
 s.new_tags "tags", &.tags.map(&.downcase)
 

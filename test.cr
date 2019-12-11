@@ -1,9 +1,9 @@
 require "json"
-require "./src/fs.cr"
+require "./src/fsdb.cr"
 
 # Basic mapping testing.
 
-a = FS::Hash(String, JSON::Any).new "test-storage"
+a = FSDB::DataBase(String, JSON::Any).new "test-storage"
 
 a["a"] = JSON::Any.new "now exists"
 
@@ -37,7 +37,7 @@ class Article
 	getter id
 end
 
-articles = FS::Hash(String, Article).new "articles"
+articles = FSDB::DataBase(String, Article).new "articles"
 by_author = articles.new_partition "author", &.author
 by_id = articles.new_index "id", &.id
 
