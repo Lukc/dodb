@@ -159,5 +159,19 @@ class DODB::DataBase(K, V)
 	private def read(file_path : String)
 		V.from_json ::File.read file_path
 	end
+
+	# A very slow operation that removes all indices and then rewrites
+	# them all.
+	def reindex_everything!
+		old_data = to_h
+
+		old_data.each do |key, value|
+			self.delete key
+		end
+
+		old_data.each do |key, value|
+			self[key] = value
+		end
+	end
 end
 

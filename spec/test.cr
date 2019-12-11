@@ -249,5 +249,30 @@ describe "DODB::DataBase" do
 			db_ships_by_tags.get("flagship").should eq([] of Ship)
 		end
 	end
+
+	describe "tools" do
+		it "rebuilds indexes" do
+			db = DODB::SpecDataBase.new
+
+			db_ships_by_name  = db.new_index     "name", &.name
+			db_ships_by_class = db.new_partition "class", &.class
+			db_ships_by_tags  = db.new_tags      "tags", &.tags
+
+			Ship.all_ships.each do |ship|
+				db[ship.id] = ship
+			end
+
+			db.reindex_everything!
+
+			Ship.all_ships.each do |ship|
+				db_ships_by_name.get?(ship.name).should eq(ship)
+				db_ships_by_class.get(ship.class).should contain(ship)
+			end
+		end
+
+		# Migration testing code will go here as soon as migration testing
+		# becomes relevant (due to format changes or so). For small projects,
+		# reindexing will work very well in the meantime.
+	end
 end
 
