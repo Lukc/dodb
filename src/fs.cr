@@ -213,17 +213,23 @@ class FS::Hash(K, V)
 	##
 	# name is the name that will be used on the file system.
 	def new_partition(name : String, &block : Proc(V, String))
-		@indexers << Partition(V).new @directory_name, name, block
+		Partition(V).new(@directory_name, name, block).tap do |table|
+			@indexers << table
+		end
 	end
 
 	##
 	# name is the name that will be used on the file system.
 	def new_index(name : String, &block : Proc(V, String))
-		@indexers << Index(V).new @directory_name, name, block
+		Index(V).new(@directory_name, name, block).tap do |indexer|
+			@indexers << indexer
+		end
 	end
 
 	def new_tags(name : String, &block : Proc(V, Array(String)))
-		@indexers << Tags(V).new @directory_name, name, block
+		Tags(V).new(@directory_name, name, block).tap do |tags|
+			@indexers << tags
+		end
 	end
 
 	def get_index(name : String, key)
