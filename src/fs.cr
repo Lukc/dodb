@@ -2,73 +2,51 @@
 require "file_utils"
 require "json"
 
-class FS::Hash(K, V)
-	# Used for 1-n associations.
-	class PartitionData(V)
-		property name : String
-		property key_proc : Proc(V, String)
+abstract class FS::Indexer(V)
+	abstract def index   (key : String, value : V)
+	abstract def deindex (key : String, value : V)
+	abstract def check!  (key : String, value : V, old_value : V?)
+	abstract def name                : String
+end
 
-		def initialize(@name, @key_proc)
-		end
+class FS::Partition(V) < FS::Indexer(V)
+	property name         : String
+	property key_proc     : Proc(V, String)
+	getter   storage_root : String
+
+	def initialize(@storage_root, @name, @key_proc)
+		::Dir.mkdir_p get_partition_directory
 	end
 
-	# Used for 1-1 associations.
-	class IndexData(V) < PartitionData(V)
+	def check!(key, value, old_value)
+		return true # Partitions don’t have collisions or overloads.
 	end
 
-	# Used for n-n associations.
-	class Tags(V)
-		property name : String
-		property key_proc : Proc(V, Array(String))
+	def index(key, value)
+		partition = key_proc.call value
 
-		def initialize(@name, @key_proc)
-		end
+		symlink = get_partition_symlink(partition, key)
+
+		Dir.mkdir_p ::File.dirname symlink
+
+		# FIXME: Should not happen anymore. Should we remove this?
+		::File.delete symlink if ::File.exists? symlink
+
+		::File.symlink get_data_symlink(key), symlink
 	end
 
-	@partitions = [] of PartitionData(V)
-	@tags = [] of Tags(V)
- 
-	def initialize(@directory_name : String)
-		Dir.mkdir_p data_path
+	def deindex(key, value)
+		partition = key_proc.call value
+
+		symlink = get_partition_symlink(partition, key)
+
+		::File.delete symlink
 	end
 
-	##
-	# name is the name that will be used on the file system.
-	def new_partition(name : String, &block : Proc(V, String))
-		@partitions.push PartitionData(V).new name, block
-
-		Dir.mkdir_p dir_path_partition(name)
-	end
-
-	##
-	# name is the name that will be used on the file system.
-	def new_index(name : String, &block : Proc(V, String))
-		@partitions.push IndexData(V).new name, block
-
-		Dir.mkdir_p dir_path_indexes(name)
-	end
-
-	def new_tags(name : String, &block : Proc(V, Array(String)))
-		@tags.push Tags(V).new name, block
-
-		Dir.mkdir_p "#{@directory_name}/.by_nn_#{name}"
-	end
-
-	def get_index(name : String)
+	def get(partition)
 		r_value = Array(V).new
 
-		indexes_directory = dir_path_indexes name
-		Dir.each_child indexes_directory do |child|
-			r_value << V.from_json ::File.read "#{indexes_directory}/#{child}"
-		end
-
-		r_value
-	end
-
-	def get_partition(name : String, key : K)
-		r_value = Array(V).new
-
-		partition_directory = "#{dir_path_partition name}/#{key}"
+		partition_directory = get_partition_directory partition
 		Dir.each_child partition_directory do |child|
 			r_value << V.from_json ::File.read "#{partition_directory}/#{child}"
 		end
@@ -76,10 +54,129 @@ class FS::Hash(K, V)
 		r_value
 	end
 
-	def get_tags(name, key : K)
+	private def get_partition_directory
+		"#{@storage_root}/partitions/by_#{@name}"
+	end
+
+	private def get_partition_directory(partition)
+		"#{get_partition_directory}/#{partition}"
+	end
+
+	private def get_partition_symlink(partition : String, key : String)
+		"#{get_partition_directory partition}/#{key}.json"
+	end
+
+	private def get_data_symlink(key : String)
+		"../../../data/#{key}.json"
+	end
+end
+
+class FS::Index(V) < FS::Indexer(V)
+	property name         : String
+	property key_proc     : Proc(V, String)
+	getter   storage_root : String
+
+	def initialize(@storage_root, @name, @key_proc)
+		Dir.mkdir_p dir_path_indices
+	end
+
+	def check!(key, value, old_value)
+		index_key = key_proc.call value
+
+		symlink = file_path_index index_key.to_s
+
+		# FIXME: Check it’s not pointing to “old_value”, if any, before raising.
+		if ::File.exists? symlink
+			if old_value
+				old_key = key_proc.call old_value
+				return if symlink == file_path_index old_key.to_s
+			end
+
+			raise IndexOverload.new "Index '#{@name}' is overloaded for key '#{key}'"
+		end
+	end
+
+	def index(key, value)
+		index_key = key_proc.call value
+
+		symlink = file_path_index index_key
+
+		Dir.mkdir_p ::File.dirname symlink
+
+		# FIXME: Now that this is done in check!, can we remove it?
+		if ::File.exists? symlink
+			raise Exception.new "symlink already exists: #{symlink}"
+		end
+
+		::File.symlink get_data_symlink_index(key), symlink
+	end
+
+	def deindex(key, value)
+		index_key = key_proc.call value
+
+		symlink = file_path_index index_key
+
+		::File.delete symlink
+	end
+
+	def get(index : String) : V?
+		V.from_json ::File.read "#{file_path_index index}"
+	end
+
+	private def dir_path_indices
+		"#{@storage_root}/indices/by_#{@name}"
+	end
+
+	private def file_path_index(index_key : String)
+		"#{dir_path_indices}/#{index_key}.json"
+	end
+
+	private def get_data_symlink_index(key : String)
+		"../../data/#{key}.json"
+	end
+end
+
+class FS::Tags(V) < FS::Indexer(V)
+	property name         : String
+	property key_proc     : Proc(V, Array(String))
+	getter   storage_root : String
+
+	def initialize(@storage_root, @name, @key_proc)
+		::Dir.mkdir_p get_tag_directory
+	end
+
+	def index(key, value)
+		indices = key_proc.call value
+
+		indices.each do |index|
+			symlink = get_tagged_entry_path(key.to_s, index)
+
+			Dir.mkdir_p ::File.dirname symlink
+
+			::File.delete symlink if ::File.exists? symlink
+
+			::File.symlink get_data_symlink(key), symlink
+		end
+	end
+
+	def deindex(key, value)
+		indices = key_proc.call value
+
+		indices.each do |index_key|
+			symlink = get_tagged_entry_path(key, index_key)
+
+			::File.delete symlink
+		end
+	end
+
+	def check!(key, value, old_value)
+		return true # Tags don’t have collisions or overloads.
+	end
+
+	def get(name, key) : Array(V)
 		r_value = Array(V).new
 
-		partition_directory = "#{dir_path_nn name}/#{key}"
+		partition_directory = "#{get_tag_directory}/#{key}"
 
 		return r_value unless Dir.exists? partition_directory
 
@@ -88,6 +185,64 @@ class FS::Hash(K, V)
 		end
 
 		r_value
+	end
+
+	private def get_tag_directory
+		"#{@storage_root}/by_tags/by_#{@name}"
+	end
+
+	private def get_tagged_entry_path(key : String, index_key : String)
+		"#{get_tag_directory}/#{index_key}/#{key}.json"
+	end
+
+	private def get_data_symlink(key)
+		"../../../data/#{key}.json"
+	end
+end
+
+class FS::IndexOverload < Exception
+end
+
+class FS::Hash(K, V)
+	@indexers = [] of Indexer(V)
+
+	def initialize(@directory_name : String)
+		Dir.mkdir_p data_path
+	end
+
+	##
+	# name is the name that will be used on the file system.
+	def new_partition(name : String, &block : Proc(V, String))
+		@indexers << Partition(V).new @directory_name, name, block
+	end
+
+	##
+	# name is the name that will be used on the file system.
+	def new_index(name : String, &block : Proc(V, String))
+		@indexers << Index(V).new @directory_name, name, block
+	end
+
+	def new_tags(name : String, &block : Proc(V, Array(String)))
+		@indexers << Tags(V).new @directory_name, name, block
+	end
+
+	def get_index(name : String, key)
+		index = @indexers.find &.name.==(name)
+
+		index.not_nil!.as(FS::Index).get key
+	end
+
+	# FIXME: Is this “key” really a K, not just a String?
+	def get_partition(table_name : String, partition_name : String)
+		partition = @indexers.find &.name.==(table_name)
+
+		partition.not_nil!.as(FS::Partition).get partition_name
+	end
+
+	def get_tags(name, key : K)
+		partition = @indexers.find &.name.==(name)
+
+		partition.not_nil!.as(FS::Tags).get name, key
 	end
 
 	def []?(key : K) : V?
@@ -124,65 +279,11 @@ class FS::Hash(K, V)
 	end
 
 	def check_collisions!(key : K, value : V, old_value : V?)
-		@partitions.each do |index|
-			case index
-			when IndexData
-				index_key = index.key_proc.call value
-
-				symlink = file_path_indexes(index_key.to_s, index.name)
-				# FIXME: Check it’s not pointing to “old_value”, if any.
-
-				pp! symlink
-
-				if ::File.exists? symlink
-					raise IndexOverload.new "Index '#{index.name}' is overloaded for key '#{key}'"
-				end
-			end
-		end
+		@indexers.each &.check!(key, value, old_value)
 	end
 
 	def write_partitions(key : K, value : V)
-		@partitions.each do |index|
-			index_key = index.key_proc.call value
-
-			case index
-			when IndexData
-				symlink = file_path_indexes(index_key, index.name)
-
-				Dir.mkdir_p ::File.dirname symlink
-
-				# FIXME: A check_collisions! is done a bit higher. Is this
-				#        still required?
-				if ::File.exists? symlink
-					raise Exception.new "symlink already exists: #{symlink}"
-				end
-
-				::File.symlink symlink_path_index(key), symlink
-			when PartitionData
-				symlink = file_path_partition(key.to_s, index.name, index_key)
-
-				Dir.mkdir_p ::File.dirname symlink
-
-				::File.delete symlink if ::File.exists? symlink
-
-				::File.symlink symlink_path_partition(key), symlink
-			end
-
-		end
-
-		@tags.each do |nn|
-			indices = nn.key_proc.call value
-
-			indices.each do |index|
-				symlink = file_path_nn(key.to_s, nn.name, index)
-
-				Dir.mkdir_p ::File.dirname symlink
-
-				::File.delete symlink if ::File.exists? symlink
-
-				::File.symlink symlink_path_nn(key), symlink
-			end
-		end
+		@indexers.each &.index(key, value)
 	end
 
 	def delete(key : K)
@@ -202,30 +303,7 @@ class FS::Hash(K, V)
 	end
 
 	def remove_partitions(key : K, value : V)
-		@partitions.each do |index|
-			index_key = index.key_proc.call value
-
-			case index
-			when IndexData
-				symlink = file_path_indexes(index_key, index.name)
-
-				::File.delete symlink
-			when PartitionData
-				symlink = file_path_partition(key, index.name, index_key)
-
-				::File.delete symlink
-			end
-		end
-
-		@tags.each do |nn|
-			indices = nn.key_proc.call value
-
-			indices.each do |index_key|
-				symlink = file_path_nn(key.to_s, nn.name, index_key)
-
-				::File.delete symlink
-			end
-		end
+		@indexers.each &.deindex(key, value)
 	end
 
 	##
@@ -272,47 +350,8 @@ class FS::Hash(K, V)
 		"#{data_path}/#{key.to_s}.json"
 	end
 
-	private def dir_path_partition(partition_name : String)
-		"#{@directory_name}/partitions/by_#{partition_name}"
-	end
-
-	private def dir_path_indexes(index_name : String)
-		"#{@directory_name}/indexes/by_#{index_name}"
-	end
-
-	private def dir_path_nn(name : String)
-		"#{@directory_name}/tags/by_#{name}"
-	end
-
-	private def file_path_indexes(index_key : String, index_name : String)
-		"#{dir_path_indexes index_name}/#{index_key}.json"
-	end
-
-	private def file_path_partition(key : String, index_name : String, index_key : String)
-		"#{dir_path_partition index_name}/#{index_key}/#{key}.json"
-	end
-
-	private def file_path_nn(key : String, index_name : String, index_key : String)
-		"#{dir_path_nn index_name}/#{index_key}/#{key}.json"
-	end
-
-	private def symlink_path_index(key : K)
-		"../../data/#{key.to_s}.json"
-	end
-
-	private def symlink_path_partition(key : K)
-		"../../../data/#{key.to_s}.json"
-	end
-
-	private def symlink_path_nn(key : K)
-		symlink_path_partition key
-	end
-
 	private def read(file_path : String)
 		V.from_json ::File.read file_path
 	end
-end
-
-class FS::IndexOverload < Exception
 end
 

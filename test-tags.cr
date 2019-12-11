@@ -13,7 +13,7 @@ class Article
 	end
 end
 
-s = FS::Hash(String, Article).new "test-storage-tags"
+s = FS::Hash(String, Article).new "test-tags"
 
 s.new_tags "tags", &.tags.map(&.downcase)
 

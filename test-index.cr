@@ -40,5 +40,5 @@ else
 	puts "ERROR: No IndexOverload exception was raised on index overload."
 end
 
-pp! ships.get_index("name").map &.name
+pp! ships.get_index("name", "Mutsuki").try &.name
 
