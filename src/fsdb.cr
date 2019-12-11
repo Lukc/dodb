@@ -52,15 +52,15 @@ class FSDB::DataBase(K, V)
 	end
 
 	def []?(key : K) : V?
-		begin
-			read file_path key
-		rescue
-			# FIXME: Only rescue JSON and “no such file” errors.
-			return nil
-		end
+		self[key]
+	rescue MissingEntry
+		# FIXME: Only rescue JSON and “no such file” errors.
+		return nil
 	end
 
 	def [](key : K) : V
+		raise MissingEntry.new(key) unless ::File.exists? file_path key
+
 		read file_path key
 	end
 

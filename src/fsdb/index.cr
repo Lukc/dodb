@@ -1,6 +1,7 @@
 require "file_utils"
 require "json"
 
+require "./exceptions.cr"
 require "./indexer.cr"
 
 class FSDB::Index(V) < FSDB::Indexer(V)
@@ -51,8 +52,18 @@ class FSDB::Index(V) < FSDB::Indexer(V)
 		::File.delete symlink
 	end
 
-	def get(index : String) : V?
-		V.from_json ::File.read "#{file_path_index index}"
+	def get(index : String) : V
+		file_path = file_path_index index
+
+		raise MissingEntry.new(@name, index) unless ::File.exists? file_path
+
+		V.from_json ::File.read file_path
+	end
+
+	def get?(index : String) : V?
+		get index
+	rescue MissingEntry
+		nil
 	end
 
 	private def dir_path_indices
@@ -66,8 +77,5 @@ class FSDB::Index(V) < FSDB::Indexer(V)
 	private def get_data_symlink_index(key : String)
 		"../../data/#{key}.json"
 	end
-end
-
-class FSDB::IndexOverload < Exception
 end
 
