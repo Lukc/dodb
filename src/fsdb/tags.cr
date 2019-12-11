@@ -38,7 +38,7 @@ class FSDB::Tags(V) < FSDB::Indexer(V)
 		return true # Tags don’t have collisions or overloads.
 	end
 
-	def get(name, key) : Array(V)
+	def get(key) : Array(V)
 		r_value = Array(V).new
 
 		partition_directory = "#{get_tag_directory}/#{key}"
