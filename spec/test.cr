@@ -5,6 +5,8 @@ require "uuid"
 
 require "../src/*"
 
+# FIXME: Split the test data in separate files. We don’t care about those here.
+
 class Ship
 	include JSON::Serializable
 
@@ -57,11 +59,37 @@ class Ship
 	end
 end
 
-class DODB::SpecDataBase < DODB::DataBase(String, Ship)
-	def initialize
-		::FileUtils.rm_rf "test-storage"
+# This will be used for migration testing, but basically it’s a variant of
+# the class above, a few extra fields, a few missing ones.
+class PrimitiveShip
+	include JSON::Serializable
 
-		initialize "test-storage"
+	property id         : String
+	property name       : String
+	property wooden     : Bool   = false # Will be removed.
+	property class_name : String         # Will be renamed
+	property flagship   : Bool   = false # Will be moved to tags.
+
+	def initialize(@name, @class_name = "<unknown>", @id = UUID.random.to_s, @flagship = false)
+	end
+
+	class_getter kamikaze =
+		PrimitiveShip.new("Kamikaze", "Kamikaze")
+	class_getter asakaze =
+		PrimitiveShip.new("Asakaze",  "Kamikaze")
+	class_getter all_ships : Array(PrimitiveShip) = [
+		@@kamikaze,
+		@@asakaze
+	]
+end
+
+class DODB::SpecDataBase < DODB::DataBase(String, Ship)
+	def initialize(storage_ext = "")
+		storage_dir = "test-storage#{storage_ext}"
+
+		::FileUtils.rm_rf storage_dir
+
+		super storage_dir
 	end
 end
 
@@ -270,9 +298,48 @@ describe "DODB::DataBase" do
 			end
 		end
 
-		# Migration testing code will go here as soon as migration testing
-		# becomes relevant (due to format changes or so). For small projects,
-		# reindexing will work very well in the meantime.
+		it "migrates properly" do
+			old_db = DODB::DataBase(String, PrimitiveShip).new "test-storage-migration-origin"
+
+			old_ships_by_name  = old_db.new_index     "name", &.name
+			old_ships_by_class = old_db.new_partition "class", &.class_name
+
+			PrimitiveShip.all_ships.each do |ship|
+				old_db[ship.id] = ship
+			end
+
+			# At this point, the “old” DB is filled. Now we need to convert
+			# to the new DB.
+
+			new_db = DODB::SpecDataBase.new "-migration-target"
+
+			new_ships_by_class = new_db.new_partition "class", &.class
+			new_ships_by_tags  = new_db.new_tags      "tags", &.tags
+			new_ships_by_tags  = new_db.new_tags      "tags", &.tags
+
+			old_db.each do |id, ship|
+				new_ship = Ship.new ship.name,
+					class: ship.class_name,
+					id: ship.id,
+					tags: Array(String).new.tap { |tags|
+						tags << "name ship" if ship.name == ship.class_name
+					}
+
+				new_db[new_ship.id] = new_ship
+			end
+
+			# At this point, the conversion is done, so… we’re making a few
+			# arbitrary tests on the new data.
+
+			old_db.each do |old_id, old_ship|
+				ship = new_db[old_id]
+
+				ship.id.should eq(old_ship.id)
+				ship.class.should eq(old_ship.class_name)
+
+				ship.tags.any?(&.==("name ship")).should be_true if ship.name == ship.class
+			end
+		end
 	end
 end
 
