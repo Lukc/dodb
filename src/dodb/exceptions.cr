@@ -1,7 +1,7 @@
 
 class DODB::MissingEntry < Exception
 	getter index : String?
-	getter key   : String
+	getter key   : String | Int32
 
 	def initialize(@index, @key)
 		super "no entry in index '#{@index}' for key '#{@key}''"

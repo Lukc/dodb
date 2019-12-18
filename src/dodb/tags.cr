@@ -14,7 +14,7 @@ class DODB::Tags(V) < DODB::Indexer(V)
 		indices = key_proc.call value
 
 		indices.each do |index|
-			symlink = get_tagged_entry_path(key.to_s, index)
+			symlink = get_tagged_entry_path(key, index)
 
 			Dir.mkdir_p ::File.dirname symlink
 
@@ -38,18 +38,25 @@ class DODB::Tags(V) < DODB::Indexer(V)
 		return true # Tags don’t have collisions or overloads.
 	end
 
-	def get(key) : Array(V)
-		r_value = Array(V).new
+	def get_with_indices(key) : Array(Tuple(V, Int32))
+		r_value = Array(Tuple(V, Int32)).new
 
 		partition_directory = "#{get_tag_directory}/#{key}"
 
 		return r_value unless Dir.exists? partition_directory
 
 		Dir.each_child partition_directory do |child|
-			r_value << V.from_json ::File.read "#{partition_directory}/#{child}"
+			r_value << {
+				V.from_json(::File.read("#{partition_directory}/#{child}")),
+				File.basename(child).gsub(/\.json$/, "").to_i
+			}
 		end
 
 		r_value
+	end
+
+	def get(key) : Array(V)
+		get_with_indices(key).map &.[0]
 	end
 
 	private def get_tag_directory
@@ -60,7 +67,7 @@ class DODB::Tags(V) < DODB::Indexer(V)
 		"#{get_tag_directory}/#{index_key}/#{key}.json"
 	end
 
-	private def get_data_symlink(key)
+	private def get_data_symlink(key : String)
 		"../../../data/#{key}.json"
 	end
 end

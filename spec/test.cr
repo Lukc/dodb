@@ -13,11 +13,16 @@ class Ship
 	def_clone
 
 	property id    : String
-	property class : String
+	property klass : String
 	property name  : String
 	property tags  : Array(String)
 
-	def initialize(@name, @class = "<unknown>", @id = UUID.random.to_s, @tags = [] of String)
+	def initialize(@name, @klass = "<unknown>", @id = UUID.random.to_s, @tags = [] of String)
+	end
+
+	# Makes testing arrays of this class easier.
+	def <=>(other)
+		@name <=> other.name
 	end
 
 	# Common, reusable test data.
@@ -54,7 +59,7 @@ class Ship
 
 	# Equality is true if every property is identical.
 	def ==(other)
-		@id == other.id && @class == other.class && @name == other.name &&
+		@id == other.id && @klass == other.klass && @name == other.name &&
 			@tags == other.tags
 	end
 end
@@ -99,42 +104,42 @@ describe "DODB::DataBase" do
 			db = DODB::SpecDataBase.new
 
 			Ship.all_ships.each do |ship|
-				db[ship.id] = ship
+				db << ship
 			end
 
-			Ship.all_ships.each do |ship|
-				db[ship.id].should eq(ship)
-			end
+			db.to_a.sort.should eq(Ship.all_ships.sort)
 		end
 
 		it "rewrite already stored data" do
 			db = DODB::SpecDataBase.new
 			ship = Ship.all_ships[0]
 
-			db[ship.id] = Ship.new "broken", id: ship.id
-			db[ship.id] = ship
+			key = db << ship
 
-			db[ship.id].should eq(ship)
+			db[key] = Ship.new "broken"
+			db[key] = ship
+
+			db[key].should eq(ship)
 		end
 
 		it "properly remove data" do
 			db = DODB::SpecDataBase.new
 
 			Ship.all_ships.each do |ship|
-				db[ship.id] = ship
+				db << ship
 			end
 
 			Ship.all_ships.each do |ship|
-				db.delete ship.id
+				db.pop
 			end
 
-			Ship.all_ships.each do |ship|
+			Ship.all_ships.each_with_index do |ship, i|
 				# FIXME: Should it raise a particular exception?
 				expect_raises DODB::MissingEntry do
-					db[ship.id]
+					db[i]
 				end
 
-				db[ship.id]?.should be_nil
+				db[i]?.should be_nil
 			end
 		end
 	end
@@ -146,10 +151,10 @@ describe "DODB::DataBase" do
 			db_ships_by_name = db.new_index "name", &.name
 
 			Ship.all_ships.each do |ship|
-				db[ship.id] = ship
+				db << ship
 			end
 
-			Ship.all_ships.each do |ship|
+			Ship.all_ships.each_with_index do |ship|
 				db_ships_by_name.get?(ship.name).should eq(ship)
 			end
 		end
@@ -159,14 +164,12 @@ describe "DODB::DataBase" do
 
 			db_ships_by_name = db.new_index "name", &.name
 
-			some_ship = Ship.kisaragi
-
-			db[some_ship.id] = some_ship
+			db << Ship.kisaragi
 
 			# Should not be allowed to store an entry whose “name” field
 			# already exists.
 			expect_raises(DODB::IndexOverload) do
-				db["another id"] = some_ship
+				db << Ship.kisaragi
 			end
 		end
 
@@ -176,11 +179,11 @@ describe "DODB::DataBase" do
 			db_ships_by_name = db.new_index "name", &.name
 
 			Ship.all_ships.each do |ship|
-				db[ship.id] = ship
+				db << ship
 			end
 
-			Ship.all_ships.each do |ship|
-				db.delete ship.id
+			Ship.all_ships.each_with_index do |ship, i|
+				db.delete i
 			end
 
 			Ship.all_ships.each do |ship|
@@ -193,18 +196,15 @@ describe "DODB::DataBase" do
 
 			db_ships_by_name = db.new_index "name", &.name
 
-			some_ship = Ship.kisaragi
-
-			db[some_ship.id] = some_ship
+			key = db << Ship.kisaragi
 
 			# We give the old id to the new ship, to get it replaced in
 			# the database.
 			some_new_ship = Ship.all_ships[2].clone
-			some_new_ship.id = some_ship.id
 
-			db[some_new_ship.id] = some_new_ship
+			db[key] = some_new_ship
 
-			db[some_new_ship.id].should eq(some_new_ship)
+			db[key].should eq(some_new_ship)
 
 			db_ships_by_name.get?(some_new_ship.name).should eq(some_new_ship)
 		end
@@ -214,24 +214,24 @@ describe "DODB::DataBase" do
 		it "do basic partitioning" do
 			db = DODB::SpecDataBase.new
 
-			db_ships_by_class = db.new_partition "class", &.class
+			db_ships_by_class = db.new_partition "class", &.klass
 
 			Ship.all_ships.each do |ship|
-				db[ship.id] = ship
+				db << ship
 			end
 
 			Ship.all_ships.each do |ship|
-				db_ships_by_class.get(ship.class).should contain(ship)
+				db_ships_by_class.get(ship.klass).should contain(ship)
 			end
 
 			# We extract the possible classes to do test on them.
-			ship_classes = Ship.all_ships.map(&.class).uniq
+			ship_classes = Ship.all_ships.map(&.klass).uniq
 			ship_classes.each do |klass|
 				partition = db_ships_by_class.get klass
 
 				# A partition on “class” should contain entries that all
 				# share the same value of “class”.
-				partition.map(&.class.==(klass)).reduce { |a, b|
+				partition.map(&.klass.==(klass)).reduce { |a, b|
 					a && b
 				}.should be_true
 			end
@@ -245,7 +245,7 @@ describe "DODB::DataBase" do
 			db_ships_by_tags = db.new_tags "tags", &.tags
 
 			Ship.all_ships.each do |ship|
-				db[ship.id] = ship
+				db << ship
 			end
 
 			db_ships_by_tags.get("flagship").should eq([Ship.flagship])
@@ -266,13 +266,20 @@ describe "DODB::DataBase" do
 			db_ships_by_tags = db.new_tags "tags", &.tags
 
 			Ship.all_ships.each do |ship|
-				db[ship.id] = ship
+				db << ship
 			end
 
 			# Removing the “flagship” tag, brace for impact.
-			flagship = db_ships_by_tags.get("flagship")[0].clone
+			flagship, index = db_ships_by_tags.get_with_indices("flagship")[0]
 			flagship.tags = [] of String
-			db[flagship.id] = flagship
+			db[index] = flagship
+
+
+
+#			ship, index = db_ships_by_tags.update(tag: "flagship") do |ship, index|
+#				ship.tags = [] of String
+#				db[index] = ship
+#			end
 
 			db_ships_by_tags.get("flagship").should eq([] of Ship)
 		end
@@ -283,18 +290,18 @@ describe "DODB::DataBase" do
 			db = DODB::SpecDataBase.new
 
 			db_ships_by_name  = db.new_index     "name", &.name
-			db_ships_by_class = db.new_partition "class", &.class
+			db_ships_by_class = db.new_partition "class", &.klass
 			db_ships_by_tags  = db.new_tags      "tags", &.tags
 
 			Ship.all_ships.each do |ship|
-				db[ship.id] = ship
+				db << ship
 			end
 
 			db.reindex_everything!
 
 			Ship.all_ships.each do |ship|
 				db_ships_by_name.get?(ship.name).should eq(ship)
-				db_ships_by_class.get(ship.class).should contain(ship)
+				db_ships_by_class.get(ship.klass).should contain(ship)
 			end
 		end
 
@@ -305,7 +312,7 @@ describe "DODB::DataBase" do
 			old_ships_by_class = old_db.new_partition "class", &.class_name
 
 			PrimitiveShip.all_ships.each do |ship|
-				old_db[ship.id] = ship
+				old_db << ship
 			end
 
 			# At this point, the “old” DB is filled. Now we need to convert
@@ -313,31 +320,31 @@ describe "DODB::DataBase" do
 
 			new_db = DODB::SpecDataBase.new "-migration-target"
 
-			new_ships_by_class = new_db.new_partition "class", &.class
-			new_ships_by_tags  = new_db.new_tags      "tags", &.tags
+			new_ships_by_name  = new_db.new_index     "name", &.name
+			new_ships_by_class = new_db.new_partition "class", &.klass
 			new_ships_by_tags  = new_db.new_tags      "tags", &.tags
 
-			old_db.each do |id, ship|
+			old_db.each_with_index do |ship, index|
 				new_ship = Ship.new ship.name,
-					class: ship.class_name,
+					klass: ship.class_name,
 					id: ship.id,
 					tags: Array(String).new.tap { |tags|
 						tags << "name ship" if ship.name == ship.class_name
 					}
 
-				new_db[new_ship.id] = new_ship
+				new_db[index] = new_ship
 			end
 
 			# At this point, the conversion is done, so… we’re making a few
 			# arbitrary tests on the new data.
 
-			old_db.each do |old_id, old_ship|
-				ship = new_db[old_id]
+			old_db.each_with_index do |old_ship, old_index|
+				ship = new_db[old_index]
 
 				ship.id.should eq(old_ship.id)
-				ship.class.should eq(old_ship.class_name)
+				ship.klass.should eq(old_ship.class_name)
 
-				ship.tags.any?(&.==("name ship")).should be_true if ship.name == ship.class
+				ship.tags.any?(&.==("name ship")).should be_true if ship.name == ship.klass
 			end
 		end
 	end
