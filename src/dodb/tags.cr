@@ -7,7 +7,7 @@ class DODB::Tags(V) < DODB::Indexer(V)
 	getter   storage_root : String
 
 	def initialize(@storage_root, @name, @key_proc)
-		::Dir.mkdir_p get_tag_directory
+		::Dir.mkdir_p indexing_directory
 	end
 
 	def index(key, value)
@@ -41,7 +41,7 @@ class DODB::Tags(V) < DODB::Indexer(V)
 	def get_with_indices(key) : Array(Tuple(V, Int32))
 		r_value = Array(Tuple(V, Int32)).new
 
-		partition_directory = "#{get_tag_directory}/#{key}"
+		partition_directory = "#{indexing_directory}/#{key}"
 
 		return r_value unless Dir.exists? partition_directory
 
@@ -59,12 +59,12 @@ class DODB::Tags(V) < DODB::Indexer(V)
 		get_with_indices(key).map &.[0]
 	end
 
-	private def get_tag_directory
+	def indexing_directory : String
 		"#{@storage_root}/by_tags/by_#{@name}"
 	end
 
 	private def get_tagged_entry_path(key : String, index_key : String)
-		"#{get_tag_directory}/#{index_key}/#{key}.json"
+		"#{indexing_directory}/#{index_key}/#{key}.json"
 	end
 
 	private def get_data_symlink(key : String)

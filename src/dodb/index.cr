@@ -10,7 +10,7 @@ class DODB::Index(V) < DODB::Indexer(V)
 	getter   storage_root : String
 
 	def initialize(@storage_root, @name, @key_proc)
-		Dir.mkdir_p dir_path_indices
+		Dir.mkdir_p indexing_directory
 	end
 
 	def check!(key, value, old_value)
@@ -66,12 +66,12 @@ class DODB::Index(V) < DODB::Indexer(V)
 		nil
 	end
 
-	private def dir_path_indices
+	def indexing_directory : String
 		"#{@storage_root}/indices/by_#{@name}"
 	end
 
 	private def file_path_index(index_key : String)
-		"#{dir_path_indices}/#{index_key}.json"
+		"#{indexing_directory}/#{index_key}.json"
 	end
 
 	private def get_data_symlink_index(key : String)

@@ -244,6 +244,12 @@ class DODB::DataBase(K, V)
 		Dir.mkdir_p data_path
 	end
 
+	private def remove_indexing!
+		@indexers.each do |indexer|
+			FileUtils.rm_rf indexer.indexing_directory
+		end
+	end
+
 	# A very slow operation that removes all indices and then rewrites
 	# them all.
 	# FIXME: Is this really useful in its current form? We should remove the
@@ -251,6 +257,9 @@ class DODB::DataBase(K, V)
 	#        possiblly different from what’s stored) data.
 	def reindex_everything!
 		old_data = to_h
+
+		remove_indexing!
+		remove_data!
 
 		old_data.each do |index, item|
 			self[index] = item
