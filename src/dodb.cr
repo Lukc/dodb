@@ -3,7 +3,7 @@ require "json"
 
 require "./dodb/*"
 
-class DODB::DataBase(K, V)
+class DODB::DataBase(V)
 	@indexers = [] of Indexer(V)
 
 	def initialize(@directory_name : String)
@@ -67,14 +67,13 @@ class DODB::DataBase(K, V)
 		index.not_nil!.as(DODB::Index).get key
 	end
 
-	# FIXME: Is this “key” really a K, not just a String?
 	def get_partition(table_name : String, partition_name : String)
 		partition = @indexers.find &.name.==(table_name)
 
 		partition.not_nil!.as(DODB::Partition).get partition_name
 	end
 
-	def get_tags(name, key : K)
+	def get_tags(name, key : String)
 		partition = @indexers.find &.name.==(name)
 
 		partition.not_nil!.as(DODB::Tags).get name, key

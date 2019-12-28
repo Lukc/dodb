@@ -88,7 +88,7 @@ class PrimitiveShip
 	]
 end
 
-class DODB::SpecDataBase < DODB::DataBase(String, Ship)
+class DODB::SpecDataBase < DODB::DataBase(Ship)
 	def initialize(storage_ext = "")
 		storage_dir = "test-storage#{storage_ext}"
 
@@ -306,7 +306,7 @@ describe "DODB::DataBase" do
 		end
 
 		it "migrates properly" do
-			old_db = DODB::DataBase(String, PrimitiveShip).new "test-storage-migration-origin"
+			old_db = DODB::DataBase(PrimitiveShip).new "test-storage-migration-origin"
 
 			old_ships_by_name  = old_db.new_index     "name", &.name
 			old_ships_by_class = old_db.new_partition "class", &.class_name
