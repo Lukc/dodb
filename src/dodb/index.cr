@@ -9,7 +9,9 @@ class DODB::Index(V) < DODB::Indexer(V)
 	property key_proc     : Proc(V, String)
 	getter   storage_root : String
 
-	def initialize(@storage_root, @name, @key_proc)
+	@storage : DODB::DataBase(V)
+
+	def initialize(@storage, @storage_root, @name, @key_proc)
 		Dir.mkdir_p indexing_directory
 	end
 
@@ -64,6 +66,37 @@ class DODB::Index(V) < DODB::Indexer(V)
 		get index
 	rescue MissingEntry
 		nil
+	end
+
+	def get_key(index : String) : Int32
+		file_path = file_path_index index
+
+		raise MissingEntry.new(@name, index) unless ::File.exists? file_path
+
+		::File.readlink(file_path)
+			.sub(/\.json$/, "")
+			.sub(/^.*\//,   "")
+			.to_i
+	end
+
+	def get_with_key(index : String) : Tuple(V, Int32)
+		key = get_key index
+
+		value = @storage[key]
+
+		{value, key}
+	end
+
+	def update(index : String, new_value : V)
+		_, key = get_with_key index
+
+		@storage[key] = new_value
+	end
+
+	def delete(index : String)
+		key = get_key index
+
+		@storage.delete key
 	end
 
 	def indexing_directory : String

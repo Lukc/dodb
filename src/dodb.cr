@@ -50,7 +50,7 @@ class DODB::DataBase(V)
 	##
 	# name is the name that will be used on the file system.
 	def new_index(name : String, &block : Proc(V, String))
-		Index(V).new(@directory_name, name, block).tap do |indexer|
+		Index(V).new(self, @directory_name, name, block).tap do |indexer|
 			@indexers << indexer
 		end
 	end
