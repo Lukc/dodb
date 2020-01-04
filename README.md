@@ -17,7 +17,7 @@ dependencies:
 # Usage
 
 ```crystal
-db = DODB::DataBase(Thing).new
+db = DODB::DataBase(Thing).new "path/to/storage/directory"
 
 db << Thing.new
 
@@ -41,7 +41,7 @@ class Thing
 end
 
 # Then we create our database.
-things = DODB::DataBase(Thing).new
+things = DODB::DataBase(Thing).new "path/to/storage/directory"
 
 # Then we define indices to it. There are several ways to index things in DODB.
 # Indices are the simplest way to do so. They represent attributes that are
