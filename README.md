@@ -61,9 +61,9 @@ things << Thing.new "two",   "word", ["number"] of String
 things << Thing.new "three", "word", ["number"] of String
 things << Thing.new "hello, world", "sentence", [] of String
 
-things_by_tags.get? "number" # Will return an array of three things ("one", "two", "three").
-things_by_category.get? "sentence" # Will return an array of one thing ("hello, world")
-things_by_id.get? "one" # Will return a single thing ("one")
+things_by_tags.get "number" # Will return an array of three things ("one", "two", "three").
+things_by_category.get "sentence" # Will return an array of one thing ("hello, world")
+things_by_id.get "one" # Will return a single thing ("one")
 
 ```
 
