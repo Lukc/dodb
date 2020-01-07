@@ -30,9 +30,10 @@ class Ship
 	# and can easily be extended.
 
 	class_getter kisaragi = Ship.new("Kisaragi", "Mutsuki")
+	class_getter mutsuki = Ship.new("Mutsuki",  "Mutsuki", tags: ["name ship"])
 	class_getter destroyers = [
 		@@kisaragi,
-		Ship.new("Mutsuki",  "Mutsuki",      tags: ["name ship"]),
+		@@mutsuki,
 		Ship.new("Yayoi",    "Mutsuki"),
 		Ship.new("Uzuki",    "Mutsuki"),
 		Ship.new("Satsuki",  "Mutsuki"),
@@ -89,10 +90,12 @@ class PrimitiveShip
 end
 
 class DODB::SpecDataBase < DODB::DataBase(Ship)
-	def initialize(storage_ext = "")
+	def initialize(storage_ext = "", remove_previous_data = true)
 		storage_dir = "test-storage#{storage_ext}"
 
-		::FileUtils.rm_rf storage_dir
+		if remove_previous_data
+			::FileUtils.rm_rf storage_dir
+		end
 
 		super storage_dir
 	end
@@ -141,6 +144,18 @@ describe "DODB::DataBase" do
 
 				db[i]?.should be_nil
 			end
+		end
+
+		it "preserves data on reopening" do
+			db1 = DODB::SpecDataBase.new
+			db1 << Ship.kisaragi
+
+			db1.to_a.size.should eq(1)
+
+			db2 = DODB::SpecDataBase.new remove_previous_data: false
+			db2 << Ship.mutsuki
+
+			db1.to_a.size.should eq(2)
 		end
 	end
 

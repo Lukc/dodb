@@ -9,7 +9,11 @@ class DODB::DataBase(V)
 	def initialize(@directory_name : String)
 		Dir.mkdir_p data_path
 
-		self.last_index = -1
+		begin
+			self.last_index
+		rescue
+			self.last_index = -1
+		end
 	end
 
 	private def index_file
@@ -21,7 +25,7 @@ class DODB::DataBase(V)
 	def last_index=(x : Int32)
 		file = File.open(index_file, "w")
 
-		file << stringify_key(x)
+		file << x.to_s
 
 		file.close
 
