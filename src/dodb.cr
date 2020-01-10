@@ -206,6 +206,28 @@ class DODB::DataBase(V)
 		end
 	end
 
+	def reverse_each_with_index
+		(last_index..0).each do |key|
+			full_path = file_path key
+
+			next unless File.exists? full_path
+
+			begin
+				# FIXME: Only intercept JSON parsing errors.
+				item = read full_path
+			rescue
+				next
+			end
+
+			yield item, key
+		end
+	end
+	def reverse_each
+		reverse_each_with_index do |item, index|
+			yield item
+		end
+	end
+
 	##
 	# CAUTION: Very slow. Try not to use.
 	def to_a

@@ -30,11 +30,12 @@ class Ship
 	# and can easily be extended.
 
 	class_getter kisaragi = Ship.new("Kisaragi", "Mutsuki")
-	class_getter mutsuki = Ship.new("Mutsuki",  "Mutsuki", tags: ["name ship"])
+	class_getter mutsuki  = Ship.new("Mutsuki",  "Mutsuki", tags: ["name ship"])
+	class_getter yayoi    = Ship.new("Yayoi",    "Mutsuki")
 	class_getter destroyers = [
-		@@kisaragi,
 		@@mutsuki,
-		Ship.new("Yayoi",    "Mutsuki"),
+		@@kisaragi,
+		@@yayoi,
 		Ship.new("Uzuki",    "Mutsuki"),
 		Ship.new("Satsuki",  "Mutsuki"),
 
@@ -156,6 +157,22 @@ describe "DODB::DataBase" do
 			db2 << Ship.mutsuki
 
 			db1.to_a.size.should eq(2)
+		end
+
+		it "iterates in normal and reversed order" do
+			db = DODB::SpecDataBase.new
+
+			Ship.all_ships.each do |ship|
+				db << ship
+			end
+
+			db.each_with_index do |item, index|
+				item.should eq Ship.all_ships[index]
+			end
+
+			db.reverse_each_with_index do |item, index|
+				item.should eq Ship.all_ships.reverse[index]
+			end
 		end
 	end
 
