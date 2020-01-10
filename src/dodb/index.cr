@@ -27,7 +27,7 @@ class DODB::Index(V) < DODB::Indexer(V)
 				return if symlink == file_path_index old_key.to_s
 			end
 
-			raise IndexOverload.new "Index '#{@name}' is overloaded for key '#{key}'"
+			raise IndexOverload.new "index '#{@name}' is overloaded for key '#{key}'"
 		end
 	end
 
