@@ -197,10 +197,21 @@ class DODB::DataBase(V)
 	##
 	# CAUTION: Very slow. Try not to use.
 	# Can be useful for making dumps or to restore a database, however.
-	def each_with_index(reversed = false)
+	def each_with_index(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
 		dirname = data_path
 
+		offset = -1
+
 		each_key(reversed) do |key, path|
+			offset += 1
+
+			if offset < start_offset
+				next
+			end
+			if !end_offset.nil? && offset > end_offset
+				next
+			end
+
 			begin
 				# FIXME: Only intercept JSON parsing errors.
 				field = read path
@@ -211,18 +222,26 @@ class DODB::DataBase(V)
 			yield field, key
 		end
 	end
-	def each(reversed = false)
-		each_with_index(reversed: reversed) do |item, index|
+	def each(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
+		each_with_index(
+			reversed: reversed,
+			start_offset: start_offset,
+			end_offset: end_offset
+		) do |item, index|
 			yield item
 		end
 	end
 
 	##
 	# CAUTION: Very slow. Try not to use.
-	def to_a(reversed = false)
+	def to_a(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
 		array = ::Array(V).new
 
-		each(reversed) do |value|
+		each(
+			reversed: reversed,
+			start_offset: start_offset,
+			end_offset: end_offset
+		) do |value|
 			array << value
 		end
 

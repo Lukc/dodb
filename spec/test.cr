@@ -174,6 +174,22 @@ describe "DODB::DataBase" do
 				item.should eq Ship.all_ships.reverse[index]
 			end
 		end
+
+		it "respects the provided offsets if any" do
+			db = DODB::SpecDataBase.new
+
+			Ship.all_ships.each do |ship|
+				db << ship
+			end
+
+			db.to_a(start_offset: 0, end_offset: 0)[0]?.should eq Ship.mutsuki
+			db.to_a(start_offset: 1, end_offset: 1)[0]?.should eq Ship.kisaragi
+			db.to_a(start_offset: 2, end_offset: 2)[0]?.should eq Ship.yayoi
+
+			db.to_a(start_offset: 0, end_offset: 2).should eq [
+				Ship.mutsuki, Ship.kisaragi, Ship.yayoi
+			]
+		end
 	end
 
 	describe "indices" do
