@@ -250,10 +250,14 @@ class DODB::DataBase(V)
 
 	##
 	# CAUTION: Very slow. Try not to use.
-	def to_h
+	def to_h(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
 		hash = ::Hash(Int32, V).new
 
-		each_with_index do |element, index|
+		each_with_index(
+			reversed: reversed,
+			start_offset: start_offset,
+			end_offset: end_offset
+		) do |element, index|
 			hash[index] = element
 		end
 
