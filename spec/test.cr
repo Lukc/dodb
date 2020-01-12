@@ -170,7 +170,7 @@ describe "DODB::DataBase" do
 				item.should eq Ship.all_ships[index]
 			end
 
-			db.reverse_each_with_index do |item, index|
+			db.each_with_index(reversed: true) do |item, index|
 				item.should eq Ship.all_ships.reverse[index]
 			end
 		end

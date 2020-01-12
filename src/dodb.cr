@@ -178,62 +178,51 @@ class DODB::DataBase(V)
 		@indexers.each &.deindex(stringify_key(key), value)
 	end
 
-	##
-	# CAUTION: Very slow. Try not to use.
-	# Can be useful for making dumps or to restore a database, however.
-	def each_with_index
-		dirname = data_path
-		Dir.each_child dirname do |child|
-			next if child.match /^\./
+	private def each_key(reversed = false)
+		range = if reversed
+					(last_index..0)
+				else
+					(0..last_index)
+				end
 
-			full_path = "#{dirname}/#{child}"
-
-			begin
-				# FIXME: Only intercept JSON parsing errors.
-				field = read full_path
-			rescue
-				next
-			end
-
-			key = child.gsub(/\.json$/, "").to_i
-
-			yield field, key
-		end
-	end
-	def each
-		each_with_index do |item, index|
-			yield item
-		end
-	end
-
-	def reverse_each_with_index
-		(last_index..0).each do |key|
+		range.each do |key|
 			full_path = file_path key
 
 			next unless File.exists? full_path
 
+			yield key, full_path
+		end
+	end
+
+	##
+	# CAUTION: Very slow. Try not to use.
+	# Can be useful for making dumps or to restore a database, however.
+	def each_with_index(reversed = false)
+		dirname = data_path
+
+		each_key(reversed) do |key, path|
 			begin
 				# FIXME: Only intercept JSON parsing errors.
-				item = read full_path
+				field = read path
 			rescue
 				next
 			end
 
-			yield item, key
+			yield field, key
 		end
 	end
-	def reverse_each
-		reverse_each_with_index do |item, index|
+	def each(reversed = false)
+		each_with_index(reversed: reversed) do |item, index|
 			yield item
 		end
 	end
 
 	##
 	# CAUTION: Very slow. Try not to use.
-	def to_a
+	def to_a(reversed = false)
 		array = ::Array(V).new
 
-		each do |value|
+		each(reversed) do |value|
 			array << value
 		end
 
