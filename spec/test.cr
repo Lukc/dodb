@@ -166,13 +166,17 @@ describe "DODB::DataBase" do
 				db << ship
 			end
 
+			# The two #each test iteration.
 			db.each_with_index do |item, index|
 				item.should eq Ship.all_ships[index]
 			end
 
 			db.each_with_index(reversed: true) do |item, index|
-				item.should eq Ship.all_ships.reverse[index]
+				item.should eq Ship.all_ships[index]
 			end
+
+			# Actual reversal is tested here.
+			db.to_a(reversed: true).should eq db.to_a.reverse
 		end
 
 		it "respects the provided offsets if any" do

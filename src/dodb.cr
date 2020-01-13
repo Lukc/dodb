@@ -179,18 +179,25 @@ class DODB::DataBase(V)
 	end
 
 	private def each_key(reversed = false)
-		range = if reversed
-					(last_index..0)
-				else
-					(0..last_index)
-				end
+		start = 0
+		_end = last_index
+		step = 1
 
-		range.each do |key|
+		if reversed
+			start = _end
+			_end = 0
+			step = -1
+		end
+
+		key = start
+		while step == 1 ? key <= _end : key >= _end
 			full_path = file_path key
 
-			next unless File.exists? full_path
+			if File.exists? full_path
+				yield key, full_path
+			end
 
-			yield key, full_path
+			key = key + step
 		end
 	end
 
