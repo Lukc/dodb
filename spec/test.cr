@@ -358,6 +358,7 @@ describe "DODB::DataBase" do
 		end
 
 		it "migrates properly" do
+			::FileUtils.rm_rf "test-storage-migration-origin"
 			old_db = DODB::DataBase(PrimitiveShip).new "test-storage-migration-origin"
 
 			old_ships_by_name  = old_db.new_index     "name", &.name
