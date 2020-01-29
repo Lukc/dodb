@@ -335,6 +335,25 @@ describe "DODB::DataBase" do
 
 			db_ships_by_tags.get("flagship").should eq([] of Ship)
 		end
+
+		it "gets items that have multiple tags" do
+			db = DODB::SpecDataBase.new
+
+			db_ships_by_tags = db.new_tags "tags", &.tags
+
+			Ship.all_ships.each do |ship|
+				db << ship
+			end
+
+			results = db_ships_by_tags.get(["flagship", "name ship"])
+			results.should eq([Ship.yamato])
+
+			results = db_ships_by_tags.get(["name ship", "flagship"])
+			results.should eq([Ship.yamato])
+
+			results = db_ships_by_tags.get(["flagship"])
+			results.should eq([Ship.yamato])
+		end
 	end
 
 	describe "tools" do
