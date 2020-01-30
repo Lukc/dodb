@@ -260,6 +260,26 @@ describe "DODB::DataBase" do
 
 			db_ships_by_name.get?(some_new_ship.name).should eq(some_new_ship)
 		end
+
+		it "properly updates" do
+			db = DODB::SpecDataBase.new
+
+			db_ships_by_name = db.new_index "name", &.name
+
+			Ship.all_ships.each do |ship|
+				db << ship
+			end
+
+			new_kisaragi = Ship.kisaragi.clone.tap do |s|
+				s.name = "Kisaragi Kai" # Don’t think about it too much.
+			end
+
+			# We’re changing an indexed value on purpose.
+			db_ships_by_name.update "Kisaragi", new_kisaragi
+
+			db_ships_by_name.get?("Kisaragi").should be_nil
+			db_ships_by_name.get?(new_kisaragi.name).should eq new_kisaragi
+		end
 	end
 
 	describe "partitions" do
