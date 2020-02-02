@@ -93,6 +93,12 @@ class DODB::Index(V) < DODB::Indexer(V)
 		@storage[key] = new_value
 	end
 
+	def update_or_create(index : String, new_value : V)
+		update index, new_value
+	rescue MissingEntry
+		@storage << new_value
+	end
+
 	def delete(index : String)
 		key = get_key index
 
