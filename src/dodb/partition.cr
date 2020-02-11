@@ -8,7 +8,9 @@ class DODB::Partition(V) < DODB::Indexer(V)
 	property key_proc     : Proc(V, String)
 	getter   storage_root : String
 
-	def initialize(@storage_root, @name, @key_proc)
+	@storage : DODB::DataBase(V)
+
+	def initialize(@storage, @storage_root, @name, @key_proc)
 		::Dir.mkdir_p indexing_directory
 	end
 
@@ -48,8 +50,32 @@ class DODB::Partition(V) < DODB::Indexer(V)
 		r_value
 	end
 
+	def delete(partition, &matcher)
+		partition_directory = indexing_directory partition
+
+		return unless Dir.exists? partition_directory
+
+		Dir.each_child partition_directory do |child|
+			path = "#{partition_directory}/#{child}"
+			item =  V.from_json ::File.read path
+
+			if yield item
+				key = get_key path
+
+				@storage.delete key
+			end
+		end
+	end
+
 	def indexing_directory : String
 		"#{@storage_root}/partitions/by_#{@name}"
+	end
+
+	private def get_key(path : String) : Int32
+		::File.readlink(path)
+			.sub(/\.json$/, "")
+			.sub(/^.*\//,   "")
+			.to_i
 	end
 
 	private def indexing_directory(partition)

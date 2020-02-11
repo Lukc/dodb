@@ -46,7 +46,7 @@ class DODB::DataBase(V)
 	##
 	# name is the name that will be used on the file system.
 	def new_partition(name : String, &block : Proc(V, String))
-		Partition(V).new(@directory_name, name, block).tap do |table|
+		Partition(V).new(self, @directory_name, name, block).tap do |table|
 			@indexers << table
 		end
 	end
