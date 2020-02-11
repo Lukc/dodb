@@ -307,6 +307,8 @@ describe "DODB::DataBase" do
 					a && b
 				}.should be_true
 			end
+
+			db_ships_by_class.get("does-not-exist").should eq [] of Ship
 		end
 
 		it "removes select elements from partitions" do
