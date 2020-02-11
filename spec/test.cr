@@ -308,6 +308,24 @@ describe "DODB::DataBase" do
 				}.should be_true
 			end
 		end
+
+		it "removes select elements from partitions" do
+			db = DODB::SpecDataBase.new
+
+			db_ships_by_class = db.new_partition "class", &.klass
+
+			Ship.all_ships.each do |ship|
+				db << ship
+			end
+
+			db_ships_by_class.delete "Mutsuki", &.name.==("Kisaragi")
+
+			Ship.all_ships.map(&.klass).uniq.each do |klass|
+				partition = db_ships_by_class.get klass
+
+				partition.any?(&.name.==("Kisaragi")).should be_false
+			end
+		end
 	end
 
 	describe "tags" do
