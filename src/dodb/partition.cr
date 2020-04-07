@@ -53,6 +53,10 @@ class DODB::Partition(V) < DODB::Indexer(V)
 		r_value
 	end
 
+	def delete(partition)
+		delete partition, do true end
+	end
+
 	def delete(partition, &matcher)
 		partition_directory = indexing_directory partition
 
