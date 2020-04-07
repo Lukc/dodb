@@ -10,22 +10,15 @@ class DODB::Tags(V) < DODB::Indexer(V)
 		::Dir.mkdir_p indexing_directory
 	end
 
-	# FIXME: Too slow. That `uniq` call alone is a perf eater.
+	# FIXME: The slow is damn too high.
 	def tag_combinations(tags)
 		combinations = [] of Array(String)
 
-		previous_tags = [] of String
-		while tag = tags.shift?
-			previous_tags.push tag
-
-			combinations.push previous_tags.clone
-
-			if tags.size > 0
-				combinations.push tags.clone
-			end
+		tags.size.times do |i|
+			combinations.concat tags.permutations (i+1)
 		end
 
-		combinations.uniq
+		return combinations
 	end
 
 	def index(key, value)
