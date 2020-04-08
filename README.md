@@ -218,7 +218,7 @@ end
 require "dodb"
 
 # First, we define what we’ll want to store.
-# It *has* to be serializable through JSON, as everything in DODB is stored in JSON directly on the file-system.
+# It *has* to be serializable through JSON, everything in DODB is stored in JSON directly on the file-system.
 class Car
 	include JSON::Serializable
 
