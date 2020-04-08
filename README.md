@@ -19,8 +19,8 @@ A brief summary:
 **TODO**: speed tests, elaborate on the matter.
 
 DODB is not compatible with projects:
-- having an absolute priority on speed
-  However, DODB is efficient in most cases with the right indexes.
+- having an absolute priority on speed,
+  however, DODB is efficient in most cases with the right indexes.
 - having relational data
 
 
