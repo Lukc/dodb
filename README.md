@@ -12,7 +12,7 @@ The objective is to get rid of DBMS when storing simple files directly on the fi
 A brief summary:
 - no SQL
 - objects are serialized (currently in JSON)
-- indexes (simple soft links on the FS) can be created to improve significantly searches in the db
+- indexes (simple symlinks on the FS) can be created to improve significantly searches in the db
 
 ## Limitations
 
@@ -81,10 +81,11 @@ require "uuid"
 
 class Car
 	include JSON::Serializable
-	property id    : String
-	property color : String
+	property id       : String
+	property color    : String
+	property keywords : Array(String)
 
-	def initialize(@color)
+	def initialize(@color, @keywords)
 		@id = UUID.random.to_s
 	end
 end
@@ -120,14 +121,14 @@ storage
 │       └── 8b4e83e3-ef95-40dc-a6e5-e6e697ce6323.json -> ../../data/0000000001.json
 ```
 
-We have 5 objects in the DB, each of them have a unique ID attribute, each attribute is related to a single object.
-Getting an object by their ID is as simple as `cat storage/indices/by_id/<id>.json`.
+We have 5 objects in the DB, each of them has a unique ID attribute, each attribute is related to a single object.
+Getting an object by its ID is as simple as `cat storage/indices/by_id/<id>.json`.
 
 
 Now we want to sort cars based on their `color` attribute.
 This time, we use a `partition`, because the relation between the attribute (color) and the object (car) is `1-n`:
 ```Crystal
-cars_by_colors = things.new_partition "color", &.color
+cars_by_colors = cars.new_partition "color", &.color
 ```
 
 On the file-system, this translates to:
@@ -147,7 +148,7 @@ $ tree storage/
 │           └── 0000000005.json -> ../../../data/0000000005.json
 ```
 
-Now the attribute correspond to a directory (blue, red, violet, etc.) containing a symlink for each related object.
+Now the attribute corresponds to a directory (blue, red, violet, etc.) containing a symlink for each related object.
 
 Finally, we want to sort cars based on the `keywords` attribute.
 This is a n-n relation, each car may have several keywords, each keyword may be related to several cars.
@@ -183,7 +184,7 @@ This is very similar to partitions, but there is a bit more complexity here sinc
 
 ## Updating an object
 
-In our last example we had a `Car` class, we stored its instances in `cars` and we could identify each instance by its `id` with the index `car_by_id`.
+In our last example we had a `Car` class, we stored its instances in `cars` and we could identify each instance by its `id` with the index `cars_by_id`.
 Now, we want to update a car:
 ```Crystal
 # we find a car we want to modify
@@ -193,24 +194,28 @@ car = cars_by_id "86a07924-ab3a-4f46-a975-e9803acba22d"
 car.color = "Blue"
 
 # update
-cars_by_id.update "86a07924-ab3a-4f46-a975-e9803acba22d", car
+cars_by_id.update car.id, car
 ```
 
 Or, in the case the object may not yet exist:
 ```Crystal
-cars_by_id.update_or_create "86a07924-ab3a-4f46-a975-e9803acba22d", car
+cars_by_id.update_or_create car.id, car
 ```
 
 ## Removing an object
 
 ```Crystal
-cars_by_id.delete "86a07924-ab3a-4f46-a975-e9803acba22d", car
+cars_by_id.delete "86a07924-ab3a-4f46-a975-e9803acba22d"
 
-cars_by_class.delete "red"
-cars_by_class.delete "red", do |car|
-	car.name == "Corvet" || car.keywords.empty
+cars_by_color.delete "red"
+cars_by_color.delete "red", do |car|
+	car.keywords.empty
 end
 ```
+
+In this last example, we apply the function on red cars only.
+This represents a performance boost compared to applying the function on all the cars.
+
 
 # Complete example
 
@@ -265,7 +270,7 @@ cars << Car.new "SUV",       "red",    [ "solid", "impressive" ]
 cars << Car.new "Mustang",   "red",    [ "shiny", "impressive", "elegant" ]
 cars << Car.new "Bullet-GT", "red",    [ "shiny", "impressive", "fast", "elegant" ]
 cars << Car.new "GTI",       "blue",   [ "average" ]
-cars << Car.new "Deudeuch",  "violet", [ "dirty", "slow", "only french will understand" ]
+cars << Car.new "Deudeuch",  "violet", [ "dirty", "slow", "only French will understand" ]
 
 # The DB can be accessed as a simple array
 cars.each do |car|
@@ -310,9 +315,9 @@ cars_by_name.update_or_create car.name, car
 # based on a name
 cars_by_name.delete "Deudeuch"
 
-# based on their color
+# based on a color
 cars_by_color.delete "red"
-# based on their color (but not only)
+# based on a color (but not only)
 cars_by_color.delete "blue", &.name.==("GTI")
 
 ## TAG-based deletion, soon.
