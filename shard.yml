@@ -1,8 +1,9 @@
 name: dodb
-version: 0.2.1
+version: 0.2.2
 
 authors:
   - Luka Vandervelden <lukc@upyum.com>
+  - Philippe Pittoli <karchnu@karchnu.fr>
 
 description: |
   Simple, embeddable Document-Oriented DataBase in Crystal.
