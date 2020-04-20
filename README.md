@@ -194,7 +194,11 @@ car = cars_by_id "86a07924-ab3a-4f46-a975-e9803acba22d"
 car.color = "Blue"
 
 # update
-cars_by_id.update car.id, car
+# simple case: no change in the index
+cars_by_id.update car
+# otherwise
+car.id = "something-else-than-before"
+cars_by_id.update "86a07924-ab3a-4f46-a975-e9803acba22d", car
 ```
 
 Or, in the case the object may not yet exist:
@@ -299,7 +303,11 @@ pp! cars_by_keyword.get "fast"
 
 car = cars_by_name.get "Corvet"
 car.color = "blue"
-cars_by_name.update "Corvet", car
+cars_by_name.update car
+
+car = cars_by_name.get "Bullet-GT"
+car.name = "Not-So-Fast-Bullet-GT"
+cars_by_name.update "Bullet-GT", car # the name changed
 
 # we have a car
 # and add it to the DB, not knowing in advance if it was already there
