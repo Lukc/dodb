@@ -32,7 +32,7 @@ You may want to add version informations to avoid unexpected breakages.
 ```yaml
 dependencies:
     dodb:
-        git: https://git.karchnu.fr/WeirdOS/dodb.cr
+        git: https://git.baguette.netlib.re/Baguette/dodb.cr
 ```
 
 
