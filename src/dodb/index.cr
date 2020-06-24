@@ -68,6 +68,21 @@ class DODB::Index(V) < DODB::Indexer(V)
 		nil
 	end
 
+	def safe_get(index : String) : Nil
+		internal_key = get_key(index).to_s
+		@storage.request_lock internal_key
+
+		yield get index
+
+		@storage.release_lock internal_key
+	end
+
+	def safe_get?(index : String, &block : Proc(V | Nil, Nil)) : Nil
+		safe_get index, &block
+	rescue MissingEntry
+		yield nil
+	end
+
 	def get_key(index : String) : Int32
 		file_path = file_path_index index
 

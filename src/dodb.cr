@@ -8,6 +8,7 @@ class DODB::DataBase(V)
 
 	def initialize(@directory_name : String)
 		Dir.mkdir_p data_path
+		Dir.mkdir_p locks_directory
 
 		begin
 			self.last_index
@@ -41,6 +42,22 @@ class DODB::DataBase(V)
 		else
 			key.to_s
 		end
+	end
+
+	def request_lock(name)
+		r = -1
+		file_path = get_lock_file_path name
+		file_perms = 0o644
+
+		flags = LibC::O_EXCL | LibC::O_CREAT
+		while (r = LibC.open file_path, flags, file_perms) == -1
+			sleep 1.milliseconds
+		end
+
+		LibC.close r
+	end
+	def release_lock(name)
+		File.delete get_lock_file_path name
 	end
 
 	##
@@ -277,6 +294,14 @@ class DODB::DataBase(V)
 
 	private def file_path(key : Int32)
 		"#{data_path}/%010i.json" % key
+	end
+
+	private def locks_directory : String
+		"#{@directory_name}/locks"
+	end
+
+	private def get_lock_file_path(name : String)
+		"#{locks_directory}/#{name}.lock"
 	end
 
 	private def read(file_path : String)

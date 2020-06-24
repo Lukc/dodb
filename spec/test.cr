@@ -396,6 +396,28 @@ describe "DODB::DataBase" do
 		end
 	end
 
+	describe "atomic operations" do
+		it "safe_get and safe_get?" do
+			db = DODB::SpecDataBase.new
+
+			db_ships_by_name = db.new_index "name", &.name
+
+			Ship.all_ships.each do |ship|
+				db << ship
+			end
+
+			Ship.all_ships.each do |ship|
+				db_ships_by_name.safe_get ship.name do |results|
+					results.should eq(ship)
+				end
+
+				db_ships_by_name.safe_get? ship.name do |results|
+					results.should eq(ship)
+				end
+			end
+		end
+	end
+
 	describe "tools" do
 		it "rebuilds indexes" do
 			db = DODB::SpecDataBase.new
