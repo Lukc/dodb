@@ -87,7 +87,7 @@ class DODB::Index(V) < DODB::Indexer(V)
 		{value, key}
 	end
 
-	# in case new_value hasn't change its index
+	# in case new_value hasn't changed its index
 	def update(new_value : V)
 		index = key_proc.call new_value
 		update index, new_value
