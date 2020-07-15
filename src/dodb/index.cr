@@ -6,7 +6,7 @@ require "./indexer.cr"
 
 class DODB::Index(V) < DODB::Indexer(V)
 	property name         : String
-	property key_proc     : Proc(V, String)
+	property key_proc     : Proc(V, String | NoIndex) | Proc(V, String)
 	getter   storage_root : String
 
 	@storage : DODB::DataBase(V)
@@ -34,6 +34,8 @@ class DODB::Index(V) < DODB::Indexer(V)
 	def index(key, value)
 		index_key = key_proc.call value
 
+		return if index_key.is_a? NoIndex
+
 		symlink = file_path_index index_key
 
 		Dir.mkdir_p ::File.dirname symlink
@@ -48,6 +50,8 @@ class DODB::Index(V) < DODB::Indexer(V)
 
 	def deindex(key, value)
 		index_key = key_proc.call value
+
+		return if index_key.is_a? NoIndex
 
 		symlink = file_path_index index_key
 
@@ -105,6 +109,9 @@ class DODB::Index(V) < DODB::Indexer(V)
 	# in case new_value hasn't changed its index
 	def update(new_value : V)
 		index = key_proc.call new_value
+
+		raise Exception.new "new value is not indexable" if index.is_a? NoIndex
+
 		update index, new_value
 	end
 

@@ -76,6 +76,12 @@ class DODB::DataBase(V)
 		end
 	end
 
+	def new_nilable_index(name : String, &block : Proc(V, String | DODB::NoIndex))
+		Index(V).new(self, @directory_name, name, block).tap do |indexer|
+			@indexers << indexer
+		end
+	end
+
 	def new_tags(name : String, &block : Proc(V, Array(String)))
 		Tags(V).new(@directory_name, name, block).tap do |tags|
 			@indexers << tags
