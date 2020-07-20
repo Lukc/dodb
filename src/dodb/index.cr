@@ -72,13 +72,16 @@ class DODB::Index(V) < DODB::Indexer(V)
 		nil
 	end
 
+	# FIXME: Unlock on exception.
 	def safe_get(index : String) : Nil
+		@storage.request_lock @name, index
 		internal_key = get_key(index).to_s
 		@storage.request_lock internal_key
 
 		yield get index
 
 		@storage.release_lock internal_key
+		@storage.release_lock @name, index
 	end
 
 	def safe_get?(index : String, &block : Proc(V | Nil, Nil)) : Nil

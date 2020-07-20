@@ -545,6 +545,31 @@ describe "DODB::DataBase" do
 				end
 			end
 		end
+
+		it "does parallel-safe updates" do
+			db = DODB::SpecDataBase.new
+			db_entries_by_name = db.new_index "name", &.name
+
+			# We’ll be storing an integer in the "klass" field, and incrementing
+			# it in forks in a second time.
+			db << Ship.new("test", "0")
+
+			processes = [] of Process
+			fork_count.times do |fork_id|
+				processes << Process.fork do
+					entries_per_fork.times do |entry_id|
+						db_entries_by_name.safe_get "test" do |entry|
+							entry.klass = (entry.klass.to_i + 1).to_s
+
+							db_entries_by_name.update "test", entry
+						end
+					end
+				end
+			end
+			processes.each &.wait
+
+			db_entries_by_name.get("test").klass.should eq((fork_count * entries_per_fork).to_s)
+		end
 	end
 end
 
