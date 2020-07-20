@@ -44,9 +44,9 @@ class DODB::DataBase(V)
 		end
 	end
 
-	def request_lock(name)
+	def request_lock(name, subname = nil)
 		r = -1
-		file_path = get_lock_file_path name
+		file_path = get_lock_file_path name, subname
 		file_perms = 0o644
 
 		flags = LibC::O_EXCL | LibC::O_CREAT
@@ -56,8 +56,8 @@ class DODB::DataBase(V)
 
 		LibC.close r
 	end
-	def release_lock(name)
-		File.delete get_lock_file_path name
+	def release_lock(name, subname = nil)
+		File.delete get_lock_file_path name, subname
 	end
 
 	##
@@ -107,11 +107,17 @@ class DODB::DataBase(V)
 	end
 
 	def <<(item : V)
+		request_lock "index"
+
 		index = last_index + 1
 
 		self[index] = item
 
 		self.last_index = index
+
+		release_lock "index"
+
+		index # FIXME: Should we really return the internal key?
 	end
 
 	def []?(key : Int32) : V?
@@ -160,6 +166,8 @@ class DODB::DataBase(V)
 	end
 
 	def pop
+		request_lock "index"
+
 		index = last_index
 
 		# Some entries may have been removed. We’ll skip over those.
@@ -177,6 +185,8 @@ class DODB::DataBase(V)
 		self.delete index
 
 		last_index = index - 1
+
+		release_lock "index"
 
 		poped
 	end
@@ -306,8 +316,12 @@ class DODB::DataBase(V)
 		"#{@directory_name}/locks"
 	end
 
-	private def get_lock_file_path(name : String)
-		"#{locks_directory}/#{name}.lock"
+	private def get_lock_file_path(name : String, subname : String? = nil)
+		if subname
+			"#{locks_directory}/#{name}-#{subname}.lock" # FIXME: Separator that causes less collisions?
+		else
+			"#{locks_directory}/#{name}.lock"
+		end
 	end
 
 	private def read(file_path : String)
