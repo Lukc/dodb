@@ -397,5 +397,94 @@ describe "DODB::DataBase" do
 			end
 		end
 	end
+
+	describe "parallel support" do
+		# Not sure how many forks would be safe in a test like that.
+		fork_count = 25
+		entries_per_fork = 100
+
+		it "works for pushing values" do
+			db = DODB::SpecDataBase.new
+
+			processes = [] of Process
+
+			fork_count.times do |fork_id|
+				processes << Process.fork do
+					entries_per_fork.times do |entry_id|
+						db << Ship.new("entry-#{fork_id}-#{entry_id}", "???")
+					end
+				end
+			end
+
+			processes.each &.wait
+
+			dump = db.to_a
+
+			dump.size.should eq fork_count * entries_per_fork
+		end
+
+		it "works for updating values" do
+			db = DODB::SpecDataBase.new
+			db_entries_by_name = db.new_index "name", &.name
+
+			# First pass, creating data.
+			processes = [] of Process
+			fork_count.times do |fork_id|
+				processes << Process.fork do
+					entries_per_fork.times do |entry_id|
+						db << Ship.new("entry-#{fork_id}-#{entry_id}", "???")
+					end
+				end
+			end
+			processes.each &.wait
+
+			# Second pass, updating data.
+			processes = [] of Process
+			fork_count.times do |fork_id|
+				processes << Process.fork do
+					entries_per_fork.times do |entry_id|
+						db_entries_by_name.update Ship.new("entry-#{fork_id}-#{entry_id}", "???", tags: ["updated"])
+					end
+				end
+			end
+			processes.each &.wait
+
+			# Third pass, testing database content.
+			dump = db.to_a
+
+			fork_count.times do |fork_id|
+				entries_per_fork.times do |entry_id|
+					entry = db_entries_by_name.get "entry-#{fork_id}-#{entry_id}"
+
+					entry.tags.should eq ["updated"]
+				end
+			end
+		end
+
+		it "does parallel-safe updates" do
+			db = DODB::SpecDataBase.new
+			db_entries_by_name = db.new_index "name", &.name
+
+			# We’ll be storing an integer in the "klass" field, and incrementing
+			# it in forks in a second time.
+			db << Ship.new("test", "0")
+
+			processes = [] of Process
+			fork_count.times do |fork_id|
+				processes << Process.fork do
+					entries_per_fork.times do |entry_id|
+						db_entries_by_name.safe_get "test" do |entry|
+							entry.klass = (entry.klass.to_i + 1).to_s
+
+							db_entries_by_name.update "test", entry
+						end
+					end
+				end
+			end
+			processes.each &.wait
+
+			db_entries_by_name.get("test").klass.should eq((fork_count * entries_per_fork).to_s)
+		end
+	end
 end
 

@@ -6,7 +6,7 @@ require "./indexer.cr"
 
 class DODB::Index(V) < DODB::Indexer(V)
 	property name         : String
-	property key_proc     : Proc(V, String)
+	property key_proc     : Proc(V, String | NoIndex) | Proc(V, String)
 	getter   storage_root : String
 
 	@storage : DODB::Storage(V)
@@ -34,6 +34,8 @@ class DODB::Index(V) < DODB::Indexer(V)
 	def index(key, value)
 		index_key = key_proc.call value
 
+		return if index_key.is_a? NoIndex
+
 		symlink = file_path_index index_key
 
 		Dir.mkdir_p ::File.dirname symlink
@@ -48,6 +50,8 @@ class DODB::Index(V) < DODB::Indexer(V)
 
 	def deindex(key, value)
 		index_key = key_proc.call value
+
+		return if index_key.is_a? NoIndex
 
 		symlink = file_path_index index_key
 
@@ -68,13 +72,16 @@ class DODB::Index(V) < DODB::Indexer(V)
 		nil
 	end
 
+	# FIXME: Unlock on exception.
 	def safe_get(index : String) : Nil
+		@storage.request_lock @name, index
 		internal_key = get_key(index).to_s
 		@storage.request_lock internal_key
 
 		yield get index
 
 		@storage.release_lock internal_key
+		@storage.release_lock @name, index
 	end
 
 	def safe_get?(index : String, &block : Proc(V | Nil, Nil)) : Nil
@@ -105,6 +112,9 @@ class DODB::Index(V) < DODB::Indexer(V)
 	# in case new_value hasn't changed its index
 	def update(new_value : V)
 		index = key_proc.call new_value
+
+		raise Exception.new "new value is not indexable" if index.is_a? NoIndex
+
 		update index, new_value
 	end
 

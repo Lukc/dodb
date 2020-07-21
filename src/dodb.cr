@@ -9,9 +9,9 @@ abstract class DODB::Storage(V)
 	def initialize(@directory_name : String)
 	end
 
-	def request_lock(name)
+	def request_lock(name, subname = nil)
 		r = -1
-		file_path = get_lock_file_path name
+		file_path = get_lock_file_path name, subname
 		file_perms = 0o644
 
 		flags = LibC::O_EXCL | LibC::O_CREAT
@@ -21,8 +21,8 @@ abstract class DODB::Storage(V)
 
 		LibC.close r
 	end
-	def release_lock(name)
-		File.delete get_lock_file_path name
+	def release_lock(name, subname = nil)
+		File.delete get_lock_file_path name, subname
 	end
 
 	private def index_file
@@ -53,9 +53,14 @@ abstract class DODB::Storage(V)
 	end
 
 	def <<(item : V)
+		request_lock "index"
 		index = last_index + 1
 		self[index] = item
 		self.last_index = index
+
+		release_lock "index"
+
+		index # FIXME: Should we really return the internal key?
 	end
 
 	def each(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
@@ -108,17 +113,9 @@ abstract class DODB::Storage(V)
 		end
 	end
 
-	##
-	# name is the name that will be used on the file system.
-	def new_partition(name : String, &block : Proc(V, String))
-		Partition(V).new(self, @directory_name, name, block).tap do |table|
-			@indexers << table
-		end
-	end
-
-	def new_tags(name : String, &block : Proc(V, Array(String)))
-		Tags(V).new(@directory_name, name, block).tap do |tags|
-			@indexers << tags
+	def new_nilable_index(name : String, &block : Proc(V, String | DODB::NoIndex))
+		Index(V).new(self, @directory_name, name, block).tap do |indexer|
+			@indexers << indexer
 		end
 	end
 
@@ -128,10 +125,28 @@ abstract class DODB::Storage(V)
 		index.not_nil!.as(DODB::Index).get key
 	end
 
+	##
+	# name is the name that will be used on the file system.
+	def new_partition(name : String, &block : Proc(V, String))
+		Partition(V).new(self, @directory_name, name, block).tap do |table|
+			@indexers << table
+		end
+	end
+
 	def get_partition(table_name : String, partition_name : String)
 		partition = @indexers.find &.name.==(table_name)
 
 		partition.not_nil!.as(DODB::Partition).get partition_name
+	end
+
+	def write_partitions(key : Int32, value : V)
+		@indexers.each &.index(stringify_key(key), value)
+	end
+
+	def new_tags(name : String, &block : Proc(V, Array(String)))
+		Tags(V).new(@directory_name, name, block).tap do |tags|
+			@indexers << tags
+		end
 	end
 
 	def get_tags(name, key : String)
@@ -144,11 +159,9 @@ abstract class DODB::Storage(V)
 		@indexers.each &.check!(stringify_key(key), value, old_value)
 	end
 
-	def write_partitions(key : Int32, value : V)
-		@indexers.each &.index(stringify_key(key), value)
-	end
-
 	def pop
+		request_lock "index"
+
 		index = last_index
 
 		# Some entries may have been removed. We’ll skip over those.
@@ -167,6 +180,8 @@ abstract class DODB::Storage(V)
 
 		last_index = index - 1
 
+		release_lock "index"
+
 		poped
 	end
 
@@ -182,8 +197,12 @@ abstract class DODB::Storage(V)
 		"#{@directory_name}/locks"
 	end
 
-	private def get_lock_file_path(name : String)
-		"#{locks_directory}/#{name}.lock"
+	private def get_lock_file_path(name : String, subname : String? = nil)
+		if subname
+			"#{locks_directory}/#{name}-#{subname}.lock" # FIXME: Separator that causes less collisions?
+		else
+			"#{locks_directory}/#{name}.lock"
+		end
 	end
 
 	private def read(file_path : String)
@@ -221,6 +240,13 @@ abstract class DODB::Storage(V)
 		@indexers.each &.deindex(stringify_key(key), value)
 	end
 
+	def []?(key : Int32) : V?
+		self[key]
+	rescue MissingEntry
+		# FIXME: Only rescue JSON and “no such file” errors.
+		return nil
+	end
+
 	abstract def [](key : Int32)
 	abstract def delete(key : Int32)
 end
@@ -237,13 +263,6 @@ class DODB::DataBase(V) < DODB::Storage(V)
 		rescue
 			self.last_index = -1
 		end
-	end
-
-	def []?(key : Int32) : V?
-		self[key]
-	rescue MissingEntry
-		# FIXME: Only rescue JSON and “no such file” errors.
-		return nil
 	end
 
 	def [](key : Int32) : V
