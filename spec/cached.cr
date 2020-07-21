@@ -5,7 +5,7 @@ require "../src/dodb.cr"
 require "./test-data.cr"
 
 
-class DODB::SpecDataBase < DODB::DataBase(Ship)
+class DODB::SpecDataBase < DODB::CachedDataBase(Ship)
 	def initialize(storage_ext = "", remove_previous_data = true)
 		storage_dir = "test-storage#{storage_ext}"
 
@@ -17,7 +17,7 @@ class DODB::SpecDataBase < DODB::DataBase(Ship)
 	end
 end
 
-describe "DODB::DataBase" do
+describe "DODB::DataBase::Cached" do
 	describe "basics" do
 		it "store and get data" do
 			db = DODB::SpecDataBase.new
@@ -71,7 +71,8 @@ describe "DODB::DataBase" do
 			db2 = DODB::SpecDataBase.new remove_previous_data: false
 			db2 << Ship.mutsuki
 
-			db1.to_a.size.should eq(2)
+			# Only difference with DODB::DataBase: for now, concurrent DB cannot coexists.
+			db2.to_a.size.should eq(2)
 		end
 
 		it "iterates in normal and reversed order" do

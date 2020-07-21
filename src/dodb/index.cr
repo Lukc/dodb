@@ -9,7 +9,7 @@ class DODB::Index(V) < DODB::Indexer(V)
 	property key_proc     : Proc(V, String)
 	getter   storage_root : String
 
-	@storage : DODB::DataBase(V)
+	@storage : DODB::Storage(V)
 
 	def initialize(@storage, @storage_root, @name, @key_proc)
 		Dir.mkdir_p indexing_directory

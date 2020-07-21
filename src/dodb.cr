@@ -3,18 +3,26 @@ require "json"
 
 require "./dodb/*"
 
-class DODB::DataBase(V)
-	@indexers = [] of Indexer(V)
+abstract class DODB::Storage(V)
+	property directory_name : String
 
 	def initialize(@directory_name : String)
-		Dir.mkdir_p data_path
-		Dir.mkdir_p locks_directory
+	end
 
-		begin
-			self.last_index
-		rescue
-			self.last_index = -1
+	def request_lock(name)
+		r = -1
+		file_path = get_lock_file_path name
+		file_perms = 0o644
+
+		flags = LibC::O_EXCL | LibC::O_CREAT
+		while (r = LibC.open file_path, flags, file_perms) == -1
+			sleep 1.milliseconds
 		end
+
+		LibC.close r
+	end
+	def release_lock(name)
+		File.delete get_lock_file_path name
 	end
 
 	private def index_file
@@ -44,28 +52,52 @@ class DODB::DataBase(V)
 		end
 	end
 
-	def request_lock(name)
-		r = -1
-		file_path = get_lock_file_path name
-		file_perms = 0o644
-
-		flags = LibC::O_EXCL | LibC::O_CREAT
-		while (r = LibC.open file_path, flags, file_perms) == -1
-			sleep 1.milliseconds
-		end
-
-		LibC.close r
+	def <<(item : V)
+		index = last_index + 1
+		self[index] = item
+		self.last_index = index
 	end
-	def release_lock(name)
-		File.delete get_lock_file_path name
+
+	def each(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
+		each_with_index(
+			reversed: reversed,
+			start_offset: start_offset,
+			end_offset: end_offset
+		) do |item, index|
+			yield item
+		end
 	end
 
 	##
-	# name is the name that will be used on the file system.
-	def new_partition(name : String, &block : Proc(V, String))
-		Partition(V).new(self, @directory_name, name, block).tap do |table|
-			@indexers << table
+	# CAUTION: Very slow. Try not to use.
+	def to_a(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
+		array = ::Array(V).new
+
+		each(
+			reversed: reversed,
+			start_offset: start_offset,
+			end_offset: end_offset
+		) do |value|
+			array << value
 		end
+
+		array
+	end
+
+	##
+	# CAUTION: Very slow. Try not to use.
+	def to_h(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
+		hash = ::Hash(Int32, V).new
+
+		each_with_index(
+			reversed: reversed,
+			start_offset: start_offset,
+			end_offset: end_offset
+		) do |element, index|
+			hash[index] = element
+		end
+
+		hash
 	end
 
 	##
@@ -73,6 +105,14 @@ class DODB::DataBase(V)
 	def new_index(name : String, &block : Proc(V, String))
 		Index(V).new(self, @directory_name, name, block).tap do |indexer|
 			@indexers << indexer
+		end
+	end
+
+	##
+	# name is the name that will be used on the file system.
+	def new_partition(name : String, &block : Proc(V, String))
+		Partition(V).new(self, @directory_name, name, block).tap do |table|
+			@indexers << table
 		end
 	end
 
@@ -100,12 +140,103 @@ class DODB::DataBase(V)
 		partition.not_nil!.as(DODB::Tags).get name, key
 	end
 
-	def <<(item : V)
-		index = last_index + 1
+	def check_collisions!(key : Int32, value : V, old_value : V?)
+		@indexers.each &.check!(stringify_key(key), value, old_value)
+	end
 
-		self[index] = item
+	def write_partitions(key : Int32, value : V)
+		@indexers.each &.index(stringify_key(key), value)
+	end
 
-		self.last_index = index
+	def pop
+		index = last_index
+
+		# Some entries may have been removed. We’ll skip over those.
+		# Not the most efficient if a large number of indices are empty.
+		while index >= 0 && self[index]?.nil?
+			index = index - 1
+		end
+
+		if index < 0
+			return nil
+		end
+
+		poped = self[index]
+
+		self.delete index
+
+		last_index = index - 1
+
+		poped
+	end
+
+	private def data_path
+		"#{@directory_name}/data"
+	end
+
+	private def file_path(key : Int32)
+		"#{data_path}/%010i.json" % key
+	end
+
+	private def locks_directory : String
+		"#{@directory_name}/locks"
+	end
+
+	private def get_lock_file_path(name : String)
+		"#{locks_directory}/#{name}.lock"
+	end
+
+	private def read(file_path : String)
+		V.from_json ::File.read file_path
+	end
+
+	private def remove_data!
+		FileUtils.rm_rf data_path
+		Dir.mkdir_p data_path
+	end
+
+	private def remove_indexing!
+		@indexers.each do |indexer|
+			FileUtils.rm_rf indexer.indexing_directory
+		end
+	end
+
+	# A very slow operation that removes all indices and then rewrites
+	# them all.
+	# FIXME: Is this really useful in its current form? We should remove the
+	#        index directories, not the indices based on our current (and
+	#        possiblly different from what’s stored) data.
+	def reindex_everything!
+		old_data = to_h
+
+		remove_indexing!
+		remove_data!
+
+		old_data.each do |index, item|
+			self[index] = item
+		end
+	end
+
+	def remove_partitions(key : Int32, value : V)
+		@indexers.each &.deindex(stringify_key(key), value)
+	end
+
+	abstract def [](key : Int32)
+	abstract def delete(key : Int32)
+end
+
+class DODB::DataBase(V) < DODB::Storage(V)
+	@indexers = [] of Indexer(V)
+
+	def initialize(@directory_name : String)
+		Dir.mkdir_p data_path
+		Dir.mkdir_p locks_directory
+
+		begin
+			self.last_index
+		rescue
+			self.last_index = -1
+		end
 	end
 
 	def []?(key : Int32) : V?
@@ -145,36 +276,6 @@ class DODB::DataBase(V)
 		end
 	end
 
-	def check_collisions!(key : Int32, value : V, old_value : V?)
-		@indexers.each &.check!(stringify_key(key), value, old_value)
-	end
-
-	def write_partitions(key : Int32, value : V)
-		@indexers.each &.index(stringify_key(key), value)
-	end
-
-	def pop
-		index = last_index
-
-		# Some entries may have been removed. We’ll skip over those.
-		# Not the most efficient if a large number of indices are empty.
-		while index >= 0 && self[index]?.nil?
-			index = index - 1
-		end
-
-		if index < 0
-			return nil
-		end
-
-		poped = self[index]
-
-		self.delete index
-
-		last_index = index - 1
-
-		poped
-	end
-
 	def delete(key : Int32)
 		value = self[key]?
 
@@ -189,10 +290,6 @@ class DODB::DataBase(V)
 		remove_partitions key, value
 
 		value
-	end
-
-	def remove_partitions(key : Int32, value : V)
-		@indexers.each &.deindex(stringify_key(key), value)
 	end
 
 	private def each_key(reversed = false)
@@ -246,93 +343,6 @@ class DODB::DataBase(V)
 			yield field, key
 		end
 	end
-	def each(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
-		each_with_index(
-			reversed: reversed,
-			start_offset: start_offset,
-			end_offset: end_offset
-		) do |item, index|
-			yield item
-		end
-	end
-
-	##
-	# CAUTION: Very slow. Try not to use.
-	def to_a(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
-		array = ::Array(V).new
-
-		each(
-			reversed: reversed,
-			start_offset: start_offset,
-			end_offset: end_offset
-		) do |value|
-			array << value
-		end
-
-		array
-	end
-
-	##
-	# CAUTION: Very slow. Try not to use.
-	def to_h(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
-		hash = ::Hash(Int32, V).new
-
-		each_with_index(
-			reversed: reversed,
-			start_offset: start_offset,
-			end_offset: end_offset
-		) do |element, index|
-			hash[index] = element
-		end
-
-		hash
-	end
-
-	private def data_path
-		"#{@directory_name}/data"
-	end
-
-	private def file_path(key : Int32)
-		"#{data_path}/%010i.json" % key
-	end
-
-	private def locks_directory : String
-		"#{@directory_name}/locks"
-	end
-
-	private def get_lock_file_path(name : String)
-		"#{locks_directory}/#{name}.lock"
-	end
-
-	private def read(file_path : String)
-		V.from_json ::File.read file_path
-	end
-
-	private def remove_data!
-		FileUtils.rm_rf data_path
-		Dir.mkdir_p data_path
-	end
-
-	private def remove_indexing!
-		@indexers.each do |indexer|
-			FileUtils.rm_rf indexer.indexing_directory
-		end
-	end
-
-	# A very slow operation that removes all indices and then rewrites
-	# them all.
-	# FIXME: Is this really useful in its current form? We should remove the
-	#        index directories, not the indices based on our current (and
-	#        possiblly different from what’s stored) data.
-	def reindex_everything!
-		old_data = to_h
-
-		remove_indexing!
-		remove_data!
-
-		old_data.each do |index, item|
-			self[index] = item
-		end
-	end
 end
 
+require "./cached.cr"
