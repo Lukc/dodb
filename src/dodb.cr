@@ -61,6 +61,10 @@ abstract class DODB::Storage(V)
 		release_lock "index"
 
 		index # FIXME: Should we really return the internal key?
+	rescue e
+		release_lock "index"
+
+		raise e
 	end
 
 	def each(reversed : Bool = false, start_offset = 0, end_offset : Int32? = nil)
