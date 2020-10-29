@@ -167,8 +167,10 @@ class DODB::DirectedGraph(V) < DODB::Indexer(V)
 		"../../../../data/#{key}.json"
 	end
 
+	# Roughly matches Index#file_path_index, but works if @storage_root
+	# is an absolute path as well.
 	private def get_cross_index_data_symlink(node : String)
-		"../../../../../#{@index.file_path_index node}"
+		"../../../../../#{@index.indexing_directory}/#{node}.json"
 	end
 end
 
