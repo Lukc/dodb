@@ -64,8 +64,6 @@ class DODB::DirectedGraph(V) < DODB::Indexer(V)
 
 			::File.delete symlink if ::File.exists? symlink
 		end
-
-		::FileUtils.rm_r indexing_directory current_node
 	end
 
 	# FIXME: Heavy duplication down below.
