@@ -140,7 +140,8 @@ class DODB::Index(V) < DODB::Indexer(V)
 		"#{@storage_root}/indices/by_#{@name}"
 	end
 
-	private def file_path_index(index_key : String)
+	# FIXME: Now that it’s being used outside of this class, name it properly.
+	def file_path_index(index_key : String)
 		"#{indexing_directory}/#{index_key}.json"
 	end
 

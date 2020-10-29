@@ -159,6 +159,12 @@ abstract class DODB::Storage(V)
 		partition.not_nil!.as(DODB::Tags).get name, key
 	end
 
+	def new_directed_graph(name : String, index : DODB::Index(V), &block : Proc(V, Array(String))) : DirectedGraph(V)
+		DirectedGraph(V).new(self, @directory_name, index, name, block).tap do |table|
+			@indexers << table
+		end
+	end
+
 	def check_collisions!(key : Int32, value : V, old_value : V?)
 		@indexers.each &.check!(stringify_key(key), value, old_value)
 	end
